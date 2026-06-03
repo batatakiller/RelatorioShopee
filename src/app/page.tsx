@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/utils/supabase';
+import { fetchDashboardData } from '@/app/actions';
 import { Order, AdData, ProductCost, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, ShoppingBag } from 'lucide-react';
@@ -21,21 +21,17 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     
-    // Fetch all data
-    const [ordersRes, adsRes, costsRes] = await Promise.all([
-      supabase.from('shopee_orders').select('*').order('order_date', { ascending: true }),
-      supabase.from('shopee_ads').select('*'),
-      supabase.from('product_costs').select('*')
-    ]);
-
-    if (ordersRes.data && adsRes.data && costsRes.data) {
+    try {
+      const data = await fetchDashboardData();
       const calcOrders = calculateProfit(
-        ordersRes.data as Order[], 
-        adsRes.data as AdData[], 
-        costsRes.data as ProductCost[]
+        data.orders, 
+        data.ads, 
+        data.costs
       );
       setOrders(calcOrders);
-      setAds(adsRes.data as AdData[]);
+      setAds(data.ads);
+    } catch (error) {
+      console.error(error);
     }
     setLoading(false);
   };

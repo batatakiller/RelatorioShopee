@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import * as xlsx from 'xlsx';
 import Papa from 'papaparse';
-import { supabase } from '@/utils/supabase';
+import { upsertAds, upsertOrders } from '@/app/actions';
 import { UploadCloud, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ImportPage() {
@@ -44,9 +44,8 @@ export default function ImportPage() {
             };
           });
 
-          // Insert into Supabase
-          const { error } = await supabase.from('shopee_ads').upsert(adsData, { onConflict: 'report_period, product_id' });
-          if (error) throw error;
+          // Insert into Supabase using Server Action
+          await upsertAds(adsData);
 
           setMessage({ type: 'success', text: `Sucesso! ${adsData.length} registros de anúncios importados.` });
         } catch (error: any) {
@@ -103,9 +102,8 @@ export default function ImportPage() {
         };
       }).filter(order => order.order_id); // Filter out empty rows
 
-      // Upsert into Supabase
-      const { error } = await supabase.from('shopee_orders').upsert(ordersData, { onConflict: 'order_id' });
-      if (error) throw error;
+      // Upsert into Supabase using Server Action
+      await upsertOrders(ordersData);
 
       setMessage({ type: 'success', text: `Sucesso! ${ordersData.length} pedidos importados.` });
     } catch (error: any) {

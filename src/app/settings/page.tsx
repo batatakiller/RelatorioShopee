@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/utils/supabase';
+import { fetchProductCosts, addProductCost, deleteProductCost, updateProductCost } from '@/app/actions';
 import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 import { ProductCost } from '@/utils/profitCalculator';
 
@@ -19,9 +19,11 @@ export default function SettingsPage() {
 
   const fetchCosts = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('product_costs').select('*').order('created_at', { ascending: true });
-    if (!error && data) {
-      setCosts(data as ProductCost[]);
+    try {
+      const data = await fetchProductCosts();
+      setCosts(data);
+    } catch (error) {
+      console.error(error);
     }
     setLoading(false);
   };
@@ -33,14 +35,14 @@ export default function SettingsPage() {
     const costNum = parseFloat(newCost);
     if (isNaN(costNum)) return;
 
-    await supabase.from('product_costs').insert([{ search_term: newTerm, cost: costNum }]);
+    await addProductCost(newTerm, costNum);
     setNewTerm('');
     setNewCost('');
     fetchCosts();
   };
 
   const handleDelete = async (search_term: string) => {
-    await supabase.from('product_costs').delete().eq('search_term', search_term);
+    await deleteProductCost(search_term);
     fetchCosts();
   };
 
@@ -53,7 +55,7 @@ export default function SettingsPage() {
     if (!editingTerm) return;
     const costNum = parseFloat(editCostValue);
     if (!isNaN(costNum)) {
-      await supabase.from('product_costs').update({ cost: costNum }).eq('search_term', editingTerm);
+      await updateProductCost(editingTerm, costNum);
     }
     setEditingTerm(null);
     fetchCosts();
