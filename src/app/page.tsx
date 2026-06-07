@@ -13,6 +13,8 @@ export default function Dashboard() {
   const [ads, setAds] = useState<AdData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedProduct, setSelectedProduct] = useState<string>('all');
+  const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
 
   useEffect(() => {
     fetchData();
@@ -36,13 +38,12 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
+  const availableProducts = useMemo(() => {
+    const products = new Set<string>();
     orders.forEach(o => {
-      const date = parseISO(o.order_date);
-      months.add(format(date, 'yyyy-MM'));
+      if (o.product_name) products.add(o.product_name);
     });
-    return Array.from(months).sort().reverse();
+    return Array.from(products).sort();
   }, [orders]);
 
   const { totalRevenue, totalAdsCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders } = useMemo(() => {
@@ -53,9 +54,28 @@ export default function Dashboard() {
 
     const dailyData: Record<string, { date: string, revenue: number, profit: number, ads: number }> = {};
 
-    const filtered = selectedMonth === 'all' 
-      ? orders 
-      : orders.filter(o => format(parseISO(o.order_date), 'yyyy-MM') === selectedMonth);
+    const filtered = orders.filter(o => {
+      // Month filter
+      if (selectedMonth !== 'all') {
+        const orderMonth = format(parseISO(o.order_date), 'yyyy-MM');
+        if (orderMonth !== selectedMonth) return false;
+      }
+
+      // Product filter
+      if (selectedProduct !== 'all' && o.product_name !== selectedProduct) {
+        return false;
+      }
+
+      // Price filter
+      if (selectedValueRange !== 'all') {
+        const price = o.original_price || 0;
+        if (selectedValueRange === 'under30' && price > 30) return false;
+        if (selectedValueRange === '30to100' && (price <= 30 || price > 100)) return false;
+        if (selectedValueRange === 'over100' && price <= 100) return false;
+      }
+
+      return true;
+    });
 
     filtered.forEach(order => {
       // Ignore Cancelado for KPIs and Charts
@@ -77,12 +97,22 @@ export default function Dashboard() {
       dailyData[dateStr].ads += order.ads_cost;
     });
 
-    const filteredAds = selectedMonth === 'all'
-      ? ads
-      : ads.filter(ad => {
-          const monthStr = format(parseISO(`${selectedMonth}-01`), 'MM/yyyy');
-          return ad.report_period.includes(monthStr);
-        });
+    const filteredAds = ads.filter(ad => {
+      // Month filter
+      if (selectedMonth !== 'all') {
+        const monthStr = format(parseISO(`${selectedMonth}-01`), 'MM/yyyy');
+        if (!ad.report_period.includes(monthStr)) return false;
+      }
+
+      // Product filter
+      if (selectedProduct !== 'all') {
+        const adLower = ad.ad_name.toLowerCase();
+        const prodLower = selectedProduct.toLowerCase();
+        if (!adLower.includes(prodLower) && !prodLower.includes(adLower)) return false;
+      }
+
+      return true;
+    });
 
     const realTotalAdsCost = filteredAds.reduce((sum, ad) => sum + ad.cost, 0);
     const tp = tr - tProductCost - realTotalAdsCost;
@@ -96,7 +126,16 @@ export default function Dashboard() {
       chartData: Object.values(dailyData),
       filteredOrders: filtered
     };
-  }, [orders, ads, selectedMonth]);
+  }, [orders, ads, selectedMonth, selectedProduct, selectedValueRange]);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    orders.forEach(o => {
+      const date = parseISO(o.order_date);
+      months.add(format(date, 'yyyy-MM'));
+    });
+    return Array.from(months).sort().reverse();
+  }, [orders]);
 
   if (loading) {
     return <div style={{ color: 'var(--text-muted)' }}>Analisando dados do Supabase...</div>;
@@ -104,34 +143,82 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Resumo Geral</h2>
-        <select 
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          style={{ 
-            padding: '0.5rem 1rem', 
-            borderRadius: '8px', 
-            backgroundColor: '#1e2130', 
-            color: 'var(--text)',
-            border: '1px solid #2d3748',
-            outline: 'none',
-            cursor: 'pointer',
-            fontSize: '0.875rem'
-          }}
-        >
-          <option value="all">Todos os Meses</option>
-          {availableMonths.map(m => {
-            const [year, month] = m.split('-');
-            const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-            const label = format(date, 'MMMM yyyy', { locale: ptBR });
-            return (
-              <option key={m} value={m}>
-                {label.charAt(0).toUpperCase() + label.slice(1)}
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Month Filter */}
+          <select 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              borderRadius: '8px', 
+              backgroundColor: '#1e2130', 
+              color: 'var(--text)',
+              border: '1px solid #2d3748',
+              outline: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem'
+            }}
+          >
+            <option value="all">Todos os Meses</option>
+            {availableMonths.map(m => {
+              const [year, month] = m.split('-');
+              const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+              const label = format(date, 'MMMM yyyy', { locale: ptBR });
+              return (
+                <option key={m} value={m}>
+                  {label.charAt(0).toUpperCase() + label.slice(1)}
+                </option>
+              );
+            })}
+          </select>
+
+          {/* Product Filter */}
+          <select 
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              borderRadius: '8px', 
+              backgroundColor: '#1e2130', 
+              color: 'var(--text)',
+              border: '1px solid #2d3748',
+              outline: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              maxWidth: '220px'
+            }}
+          >
+            <option value="all">Todos os Produtos</option>
+            {availableProducts.map(p => (
+              <option key={p} value={p} title={p}>
+                {p.length > 25 ? `${p.slice(0, 25)}...` : p}
               </option>
-            );
-          })}
-        </select>
+            ))}
+          </select>
+
+          {/* Price Filter */}
+          <select 
+            value={selectedValueRange}
+            onChange={(e) => setSelectedValueRange(e.target.value)}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              borderRadius: '8px', 
+              backgroundColor: '#1e2130', 
+              color: 'var(--text)',
+              border: '1px solid #2d3748',
+              outline: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem'
+            }}
+          >
+            <option value="all">Todos os Preços</option>
+            <option value="under30">Até R$ 30,00</option>
+            <option value="30to100">R$ 30,00 a R$ 100,00</option>
+            <option value="over100">Acima de R$ 100,00</option>
+          </select>
+        </div>
       </div>
 
       {/* KPI Cards */}
