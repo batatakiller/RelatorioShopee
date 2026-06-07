@@ -13,8 +13,9 @@ export default function Dashboard() {
   const [ads, setAds] = useState<AdData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [selectedProduct, setSelectedProduct] = useState<string>('all');
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -32,6 +33,12 @@ export default function Dashboard() {
       );
       setOrders(calcOrders);
       setAds(data.ads);
+
+      const products = new Set<string>();
+      calcOrders.forEach(o => {
+        if (o.product_name) products.add(o.product_name);
+      });
+      setSelectedProducts(Array.from(products));
     } catch (error) {
       console.error(error);
     }
@@ -46,7 +53,7 @@ export default function Dashboard() {
     return Array.from(products).sort();
   }, [orders]);
 
-  const { totalRevenue, totalAdsCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders } = useMemo(() => {
+  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
     let validOrdersCount = 0;
@@ -61,8 +68,8 @@ export default function Dashboard() {
         if (orderMonth !== selectedMonth) return false;
       }
 
-      // Product filter
-      if (selectedProduct !== 'all' && o.product_name !== selectedProduct) {
+      // Product filter (check if order's product is in the selected list)
+      if (!selectedProducts.includes(o.product_name)) {
         return false;
       }
 
@@ -104,12 +111,13 @@ export default function Dashboard() {
         if (!ad.report_period.includes(monthStr)) return false;
       }
 
-      // Product filter
-      if (selectedProduct !== 'all') {
+      // Product filter matching any of the selected products
+      const matched = selectedProducts.some(p => {
         const adLower = ad.ad_name.toLowerCase();
-        const prodLower = selectedProduct.toLowerCase();
-        if (!adLower.includes(prodLower) && !prodLower.includes(adLower)) return false;
-      }
+        const prodLower = p.toLowerCase();
+        return adLower.includes(prodLower) || prodLower.includes(adLower);
+      });
+      if (!matched) return false;
 
       return true;
     });
@@ -120,13 +128,14 @@ export default function Dashboard() {
     return {
       totalRevenue: tr,
       totalAdsCost: realTotalAdsCost,
+      totalProductCost: tProductCost,
       totalProfit: tp,
       totalOrders: validOrdersCount,
       cancelledOrders: cancelledCount,
       chartData: Object.values(dailyData),
       filteredOrders: filtered
     };
-  }, [orders, ads, selectedMonth, selectedProduct, selectedValueRange]);
+  }, [orders, ads, selectedMonth, selectedProducts, selectedValueRange]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -174,29 +183,94 @@ export default function Dashboard() {
             })}
           </select>
 
-          {/* Product Filter */}
-          <select 
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: '8px', 
-              backgroundColor: '#1e2130', 
-              color: 'var(--text)',
-              border: '1px solid #2d3748',
-              outline: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              maxWidth: '220px'
-            }}
-          >
-            <option value="all">Todos os Produtos</option>
-            {availableProducts.map(p => (
-              <option key={p} value={p} title={p}>
-                {p.length > 25 ? `${p.slice(0, 25)}...` : p}
-              </option>
-            ))}
-          </select>
+          {/* Product Filter (Custom Multi-select Dropdown) */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
+              style={{ 
+                padding: '0.5rem 1rem', 
+                borderRadius: '8px', 
+                backgroundColor: '#1e2130', 
+                color: 'var(--text)',
+                border: '1px solid #2d3748',
+                outline: 'none',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                minWidth: '200px',
+                textAlign: 'left',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedProducts.length === 0 
+                  ? "Nenhum Produto" 
+                  : selectedProducts.length === availableProducts.length 
+                    ? "Todos os Produtos" 
+                    : `${selectedProducts.length} Selecionados`}
+              </span>
+              <span style={{ fontSize: '0.6rem' }}>▼</span>
+            </button>
+            
+            {isProductDropdownOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setIsProductDropdownOpen(false)} />
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  right: 0, 
+                  backgroundColor: '#1e2130', 
+                  border: '1px solid #2d3748', 
+                  borderRadius: '8px', 
+                  padding: '0.5rem', 
+                  zIndex: 100, 
+                  maxHeight: '300px', 
+                  overflowY: 'auto',
+                  minWidth: '260px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                  marginTop: '0.5rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.25rem 0.5rem', borderBottom: '1px solid #2d3748', marginBottom: '0.5rem', paddingBottom: '0.5rem' }}>
+                    <button 
+                      onClick={() => setSelectedProducts(availableProducts)} 
+                      style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      Selecionar Todos
+                    </button>
+                    <button 
+                      onClick={() => setSelectedProducts([])} 
+                      style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                  {availableProducts.map(p => {
+                    const isChecked = selectedProducts.includes(p);
+                    return (
+                      <label key={p} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--text)' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedProducts(selectedProducts.filter(item => item !== p));
+                            } else {
+                              setSelectedProducts([...selectedProducts, p]);
+                            }
+                          }}
+                        />
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={p}>
+                          {p}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Price Filter */}
           <select 
@@ -222,48 +296,58 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ padding: '1rem', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
-            <DollarSign size={24} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
+            <DollarSign size={20} />
           </div>
           <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Receita Líquida (Shopee)</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>R$ {totalRevenue.toFixed(2)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Receita Líquida (Shopee)</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalRevenue.toFixed(2)}</h3>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)' }}>
+            <TrendingDown size={20} />
+          </div>
+          <div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Custo de Produtos</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalProductCost.toFixed(2)}</h3>
           </div>
         </div>
         
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ padding: '1rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)' }}>
-            <TrendingDown size={24} />
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)' }}>
+            <TrendingDown size={20} />
           </div>
           <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Custo Total de Ads</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>R$ {totalAdsCost.toFixed(2)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Custo de Ads</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalAdsCost.toFixed(2)}</h3>
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', color: 'var(--success)' }}>
-            <TrendingUp size={24} />
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', color: 'var(--success)' }}>
+            <TrendingUp size={20} />
           </div>
           <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Lucro Real</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>R$ {totalProfit.toFixed(2)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Lucro Real</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalProfit.toFixed(2)}</h3>
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ padding: '1rem', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
-            <ShoppingBag size={24} />
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
+            <ShoppingBag size={20} />
           </div>
           <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Total de Pedidos</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Total de Pedidos</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {totalOrders} 
               {cancelledOrders > 0 && (
-                <span style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--danger)', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.125rem 0.5rem', borderRadius: '4px' }}>
-                  {cancelledOrders} cancelados
+                <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--danger)', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.125rem 0.35rem', borderRadius: '4px' }}>
+                  {cancelledOrders} canc.
                 </span>
               )}
             </h3>
