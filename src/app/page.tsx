@@ -12,7 +12,8 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
   const [ads, setAds] = useState<AdData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
@@ -39,6 +40,14 @@ export default function Dashboard() {
         if (o.product_name) products.add(o.product_name);
       });
       setSelectedProducts(Array.from(products));
+
+      // Set default date range based on order dates
+      if (calcOrders.length > 0) {
+        const dates = calcOrders.map(o => o.order_date.split('T')[0]);
+        dates.sort();
+        setStartDate(dates[0]);
+        setEndDate(dates[dates.length - 1]);
+      }
     } catch (error) {
       console.error(error);
     }
@@ -62,11 +71,11 @@ export default function Dashboard() {
     const dailyData: Record<string, { date: string, revenue: number, profit: number, ads: number }> = {};
 
     const filtered = orders.filter(o => {
-      // Month filter
-      if (selectedMonth !== 'all') {
-        const orderMonth = format(parseISO(o.order_date), 'yyyy-MM');
-        if (orderMonth !== selectedMonth) return false;
-      }
+      const orderDateStr = o.order_date.split('T')[0];
+
+      // Date range filter
+      if (startDate && orderDateStr < startDate) return false;
+      if (endDate && orderDateStr > endDate) return false;
 
       // Product filter (check if order's product is in the selected list)
       if (!selectedProducts.includes(o.product_name)) {
@@ -105,10 +114,18 @@ export default function Dashboard() {
     });
 
     const filteredAds = ads.filter(ad => {
-      // Month filter
-      if (selectedMonth !== 'all') {
-        const monthStr = format(parseISO(`${selectedMonth}-01`), 'MM/yyyy');
-        if (!ad.report_period.includes(monthStr)) return false;
+      // Date range filter on ads period: "DD/MM/YYYY - DD/MM/YYYY"
+      const parts = ad.report_period.split(' - ');
+      if (parts.length === 2) {
+        const [adStartStr, adEndStr] = parts;
+        const [sDay, sMonth, sYear] = adStartStr.split('/');
+        const [eDay, eMonth, eYear] = adEndStr.split('/');
+        
+        const adStart = `${sYear}-${sMonth}-${sDay}`;
+        const adEnd = `${eYear}-${eMonth}-${eDay}`;
+
+        if (startDate && adEnd < startDate) return false;
+        if (endDate && adStart > endDate) return false;
       }
 
       // Product filter matching any of the selected products
@@ -135,16 +152,9 @@ export default function Dashboard() {
       chartData: Object.values(dailyData),
       filteredOrders: filtered
     };
-  }, [orders, ads, selectedMonth, selectedProducts, selectedValueRange]);
+  }, [orders, ads, startDate, endDate, selectedProducts, selectedValueRange]);
 
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    orders.forEach(o => {
-      const date = parseISO(o.order_date);
-      months.add(format(date, 'yyyy-MM'));
-    });
-    return Array.from(months).sort().reverse();
-  }, [orders]);
+  // Remove availableMonths since we use calendar inputs now
 
   if (loading) {
     return <div style={{ color: 'var(--text-muted)' }}>Analisando dados do Supabase...</div>;
@@ -154,34 +164,37 @@ export default function Dashboard() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Resumo Geral</h2>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {/* Month Filter */}
-          <select 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: '8px', 
-              backgroundColor: '#1e2130', 
-              color: 'var(--text)',
-              border: '1px solid #2d3748',
-              outline: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
-          >
-            <option value="all">Todos os Meses</option>
-            {availableMonths.map(m => {
-              const [year, month] = m.split('-');
-              const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-              const label = format(date, 'MMMM yyyy', { locale: ptBR });
-              return (
-                <option key={m} value={m}>
-                  {label.charAt(0).toUpperCase() + label.slice(1)}
-                </option>
-              );
-            })}
-          </select>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Calendar Inputs for Start Date and End Date */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#1e2130', padding: '0.25rem 0.75rem', borderRadius: '8px', border: '1px solid #2d3748' }}>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              style={{ 
+                backgroundColor: 'transparent', 
+                color: 'var(--text)', 
+                border: 'none', 
+                outline: 'none', 
+                fontSize: '0.875rem',
+                cursor: 'pointer'
+              }} 
+            />
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>até</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              style={{ 
+                backgroundColor: 'transparent', 
+                color: 'var(--text)', 
+                border: 'none', 
+                outline: 'none', 
+                fontSize: '0.875rem',
+                cursor: 'pointer'
+              }} 
+            />
+          </div>
 
           {/* Product Filter (Custom Multi-select Dropdown) */}
           <div style={{ position: 'relative' }}>
