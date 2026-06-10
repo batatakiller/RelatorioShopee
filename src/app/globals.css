@@ -108,6 +108,8 @@ button {
 /* Tables */
 .table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 600px;
   width: 100%;
 }
 
@@ -118,6 +120,9 @@ table {
 }
 
 th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background-color: var(--surface-hover);
   padding: 1rem;
   font-weight: 600;
