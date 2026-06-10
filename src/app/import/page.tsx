@@ -88,6 +88,15 @@ export default function ImportPage() {
         const descontosExtras = cupomVendedor + ajusteComercial + descontoLeveMais;
         const receitaLiquida = (precoOriginal * quantidade) - descontoVendedor - descontosExtras - comissao - servico - transacao - taxaEnvioReversa;
 
+        const statusDevolucao = row['Status da Devolução / Reembolso'] || '';
+        let status = row['Status do pedido'] || 'Desconhecido';
+        if (
+          statusDevolucao.toLowerCase().includes('solicitação aprovada') ||
+          statusDevolucao.toLowerCase().includes('devolução em andamento')
+        ) {
+          status = 'Cancelado';
+        }
+
         return {
           order_id: row['ID do pedido'],
           order_date: new Date(row['Data de criação do pedido']).toISOString(),
@@ -96,7 +105,7 @@ export default function ImportPage() {
           total_revenue: receitaLiquida,
           commission_fee: comissao,
           service_fee: servico,
-          status: row['Status do pedido'] || 'Desconhecido',
+          status: status,
           original_price: precoOriginal,
           seller_discount: descontoVendedor,
           seller_coupon: descontosExtras,
