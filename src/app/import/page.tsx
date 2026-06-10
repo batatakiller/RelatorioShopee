@@ -74,6 +74,7 @@ export default function ImportPage() {
       const rows = xlsx.utils.sheet_to_json(sheet) as any[];
 
       const ordersData = rows.map(row => {
+        const quantidade = parseInt(row['Quantidade']) || 1;
         const precoOriginal = parseFloat(row['Preço original'] || 0) || 0;
         const descontoVendedor = parseFloat(row['Desconto do vendedor'] || 0) || 0;
         const cupomVendedor = parseFloat(row['Cupom do vendedor'] || 0) || 0;
@@ -85,13 +86,13 @@ export default function ImportPage() {
         const taxaEnvioReversa = parseFloat(row['Taxa de Envio Reversa'] || 0) || 0;
         
         const descontosExtras = cupomVendedor + ajusteComercial + descontoLeveMais;
-        const receitaLiquida = precoOriginal - descontoVendedor - descontosExtras - comissao - servico - transacao - taxaEnvioReversa;
+        const receitaLiquida = (precoOriginal * quantidade) - descontoVendedor - descontosExtras - comissao - servico - transacao - taxaEnvioReversa;
 
         return {
           order_id: row['ID do pedido'],
           order_date: new Date(row['Data de criação do pedido']).toISOString(),
           product_name: row['Nome do Produto'],
-          quantity: parseInt(row['Quantidade']) || 1,
+          quantity: quantidade,
           total_revenue: receitaLiquida,
           commission_fee: comissao,
           service_fee: servico,

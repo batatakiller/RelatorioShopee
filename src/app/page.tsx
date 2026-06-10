@@ -400,6 +400,7 @@ export default function Dashboard() {
                 <th>Data</th>
                 <th>Status</th>
                 <th>Produto</th>
+                <th>Qtd.</th>
                 <th>Preço Orig.</th>
                 <th>Descontos</th>
                 <th>Receita Liq.</th>
@@ -431,7 +432,8 @@ export default function Dashboard() {
                     <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.product_name}>
                       {order.product_name}
                     </td>
-                    <td style={{ color: 'var(--text-muted)' }}>R$ {order.original_price?.toFixed(2) || '0.00'}</td>
+                    <td style={{ textAlign: 'center' }}>{order.quantity}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>R$ {((order.original_price || 0) * (order.quantity || 1)).toFixed(2)}</td>
                     <td className="text-warning">- R$ {((order.seller_discount || 0) + (order.seller_coupon || 0)).toFixed(2)}</td>
                     <td>R$ {order.total_revenue.toFixed(2)}</td>
                     <td className="text-danger">- R$ {order.product_cost.toFixed(2)}</td>
@@ -444,7 +446,7 @@ export default function Dashboard() {
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                     Nenhum pedido importado ainda.
                   </td>
                 </tr>
