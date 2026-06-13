@@ -63,22 +63,24 @@ export async function upsertPayouts(payoutsData: { order_id: string; payout_amou
 
     const orderIds = payoutsData.map(p => p.order_id);
     
+    // Fetch all NOT NULL columns for existing orders to avoid NOT NULL violations during upsert
     const { data: existingOrders, error: fetchError } = await supabase
       .from('shopee_orders')
-      .select('order_id')
+      .select('order_id, order_date, product_name, quantity, total_revenue, commission_fee, service_fee, status, original_price, seller_discount, seller_coupon')
       .in('order_id', orderIds);
 
     if (fetchError) throw fetchError;
 
-    const existingIds = new Set(existingOrders?.map(o => o.order_id) || []);
+    const existingMap = new Map(existingOrders?.map(o => [o.order_id, o]) || []);
 
     const existingUpdates = [];
     const newInserts = [];
 
     for (const payout of payoutsData) {
-      if (existingIds.has(payout.order_id)) {
+      const existing = existingMap.get(payout.order_id);
+      if (existing) {
         existingUpdates.push({
-          order_id: payout.order_id,
+          ...existing,
           payout_amount: payout.payout_amount,
           payout_date: payout.payout_date,
           payout_unmatched: false
