@@ -79,6 +79,10 @@ export async function upsertPayouts(payoutsData: { order_id: string; payout_amou
     for (const payout of payoutsData) {
       const existing = existingMap.get(payout.order_id);
       if (existing) {
+        // Skip updating if the order is cancelled
+        if (existing.status?.toLowerCase().includes('cancelado')) {
+          continue;
+        }
         // Only update if it doesn't already have payout details recorded (keep what is already imported)
         if (existing.payout_amount === null || existing.payout_amount === undefined) {
           existingUpdates.push({
