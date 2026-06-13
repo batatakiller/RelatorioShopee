@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS public.shopee_orders (
     original_price DECIMAL(10, 2) DEFAULT 0.0,
     seller_discount DECIMAL(10, 2) DEFAULT 0.0,
     seller_coupon DECIMAL(10, 2) DEFAULT 0.0,
+    payout_amount DECIMAL(10, 2) DEFAULT NULL,
+    payout_date TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    payout_unmatched BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -2,11 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { fetchDashboardData } from '@/app/actions';
-import { Order, AdData, ProductCost, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, ShoppingBag } from 'lucide-react';
+import { AdData, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
@@ -17,10 +16,6 @@ export default function Dashboard() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -54,6 +49,12 @@ export default function Dashboard() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchData();
+    });
+  }, []);
+
   const availableProducts = useMemo(() => {
     const products = new Set<string>();
     orders.forEach(o => {
@@ -62,11 +63,13 @@ export default function Dashboard() {
     return Array.from(products).sort();
   }, [orders]);
 
-  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders } = useMemo(() => {
+  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
     let validOrdersCount = 0;
     let cancelledCount = 0;
+    let totalReceived = 0;
+    let totalPending = 0;
 
     const dailyData: Record<string, { date: string, revenue: number, profit: number, ads: number }> = {};
 
@@ -103,6 +106,14 @@ export default function Dashboard() {
       tr += order.total_revenue;
       tProductCost += order.product_cost;
       validOrdersCount++;
+
+      if (order.payout_amount !== undefined && order.payout_amount !== null) {
+        totalReceived += order.payout_amount;
+      } else {
+        if (!order.payout_unmatched) {
+          totalPending += order.total_revenue;
+        }
+      }
 
       const dateStr = format(parseISO(order.order_date), 'dd/MM/yyyy');
       if (!dailyData[dateStr]) {
@@ -150,7 +161,9 @@ export default function Dashboard() {
       totalOrders: validOrdersCount,
       cancelledOrders: cancelledCount,
       chartData: Object.values(dailyData),
-      filteredOrders: filtered
+      filteredOrders: filtered,
+      totalReceived,
+      totalPending
     };
   }, [orders, ads, startDate, endDate, selectedProducts, selectedValueRange]);
 
@@ -321,6 +334,26 @@ export default function Dashboard() {
         </div>
 
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', color: 'var(--success)' }}>
+            <CheckCircle size={20} />
+          </div>
+          <div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Total Recebido (Balanço)</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalReceived.toFixed(2)}</h3>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+          <div style={{ padding: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: '12px', color: 'var(--warning)' }}>
+            <Clock size={20} />
+          </div>
+          <div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Pendente de Liberação</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalPending.toFixed(2)}</h3>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
           <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)' }}>
             <TrendingDown size={20} />
           </div>
@@ -379,6 +412,7 @@ export default function Dashboard() {
             <Tooltip 
               contentStyle={{ backgroundColor: '#1e2130', borderColor: '#2d3748', color: '#f3f4f6', borderRadius: '8px' }}
               itemStyle={{ fontSize: '14px' }}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
             />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
@@ -397,8 +431,11 @@ export default function Dashboard() {
             <thead>
               <tr>
                 <th>ID Pedido</th>
-                <th>Data</th>
-                <th>Status</th>
+                <th>Data Pedido</th>
+                <th>Status Pedido</th>
+                <th>Status Pagto</th>
+                <th>Valor Recebido</th>
+                <th>Data Pagto</th>
                 <th>Produto</th>
                 <th>Qtd.</th>
                 <th>Preço Orig.</th>
@@ -412,11 +449,30 @@ export default function Dashboard() {
             <tbody>
               {filteredOrders.map(order => {
                 const isCancelled = order.status?.toLowerCase().includes('cancelado');
-                const rowStyle = isCancelled ? { opacity: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.02)' } : {};
+                const isUnmatched = order.payout_unmatched;
                 
+                let rowStyle: React.CSSProperties = {};
+                if (isCancelled) {
+                  rowStyle = { opacity: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.02)' };
+                } else if (isUnmatched) {
+                  rowStyle = { backgroundColor: 'rgba(245, 158, 11, 0.05)', borderLeft: '3px solid var(--warning)' };
+                }
+                
+                const formatPayoutDate = (dateStr?: string) => {
+                  if (!dateStr) return '-';
+                  try {
+                    return format(parseISO(dateStr), 'dd/MM/yy');
+                  } catch {
+                    return dateStr.split('T')[0];
+                  }
+                };
+
                 return (
                   <tr key={order.order_id} style={rowStyle}>
-                    <td style={{ fontSize: '0.875rem' }}>{order.order_id}</td>
+                    <td style={{ fontSize: '0.875rem', fontWeight: isUnmatched ? 'bold' : 'normal' }}>
+                      {isUnmatched && <AlertTriangle size={14} className="text-warning" style={{ display: 'inline', marginRight: '0.25rem', verticalAlign: 'text-bottom' }} />}
+                      {order.order_id}
+                    </td>
                     <td>{format(parseISO(order.order_date), 'dd/MM/yy')}</td>
                     <td>
                       <span style={{ 
@@ -429,7 +485,52 @@ export default function Dashboard() {
                         {order.status}
                       </span>
                     </td>
-                    <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.product_name}>
+                    <td>
+                      {order.payout_amount !== undefined && order.payout_amount !== null ? (
+                        <span style={{ 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: '4px', 
+                          fontSize: '0.75rem',
+                          backgroundColor: isUnmatched ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                          color: isUnmatched ? 'var(--danger)' : 'var(--success)',
+                          fontWeight: 'bold',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}>
+                          <CheckCircle size={10} />
+                          {isUnmatched ? 'Não Conciliado' : 'Recebido'}
+                        </span>
+                      ) : (
+                        <span style={{ 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: '4px', 
+                          fontSize: '0.75rem',
+                          backgroundColor: 'rgba(156, 163, 175, 0.2)',
+                          color: 'var(--text-muted)'
+                        }}>
+                          Pendente
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ fontWeight: 'bold' }}>
+                      {order.payout_amount !== undefined && order.payout_amount !== null ? (
+                        `R$ ${order.payout_amount.toFixed(2)}`
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>
+                      {formatPayoutDate(order.payout_date)}
+                    </td>
+                    <td style={{ 
+                      maxWidth: '200px', 
+                      whiteSpace: 'nowrap', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis',
+                      color: isUnmatched ? 'var(--warning)' : 'inherit',
+                      fontStyle: isUnmatched ? 'italic' : 'normal'
+                    }} title={order.product_name}>
                       {order.product_name}
                     </td>
                     <td style={{ textAlign: 'center' }}>{order.quantity}</td>
@@ -438,7 +539,7 @@ export default function Dashboard() {
                     <td>R$ {order.total_revenue.toFixed(2)}</td>
                     <td className="text-danger">- R$ {order.product_cost.toFixed(2)}</td>
                     <td className="text-danger">- R$ {order.ads_cost.toFixed(2)}</td>
-                    <td className={order.net_profit >= 0 && !isCancelled ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
+                    <td className={order.net_profit >= 0 && !isCancelled && !isUnmatched ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
                       R$ {order.net_profit.toFixed(2)}
                     </td>
                   </tr>
@@ -446,7 +547,7 @@ export default function Dashboard() {
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={14} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                     Nenhum pedido importado ainda.
                   </td>
                 </tr>

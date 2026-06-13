@@ -13,10 +13,6 @@ export default function SettingsPage() {
   const [editingTerm, setEditingTerm] = useState<string | null>(null);
   const [editCostValue, setEditCostValue] = useState('');
 
-  useEffect(() => {
-    fetchCosts();
-  }, []);
-
   const fetchCosts = async () => {
     setLoading(true);
     try {
@@ -27,6 +23,12 @@ export default function SettingsPage() {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchCosts();
+    });
+  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +67,7 @@ export default function SettingsPage() {
     <div>
       <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Configurações de Custos</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-        Defina os custos base dos produtos. O sistema usará esses termos de busca para encontrar o custo correto do pedido (ex: "Windows" e "Office"). Se os dois termos estiverem presentes, os custos serão somados.
+        Defina os custos base dos produtos. O sistema usará esses termos de busca para encontrar o custo correto do pedido (ex: &quot;Windows&quot; e &quot;Office&quot;). Se os dois termos estiverem presentes, os custos serão somados.
       </p>
 
       <div className="card" style={{ marginBottom: '2rem' }}>

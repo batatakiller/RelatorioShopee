@@ -10,6 +10,9 @@ export interface Order {
   original_price: number;
   seller_discount: number;
   seller_coupon: number;
+  payout_amount?: number;
+  payout_date?: string;
+  payout_unmatched?: boolean;
 }
 
 export interface AdData {
