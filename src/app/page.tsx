@@ -2,14 +2,17 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { fetchDashboardData } from '@/app/actions';
-import { AdData, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
+import { AdData, AdsBillingDaily, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle, Wallet } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
   const [ads, setAds] = useState<AdData[]>([]);
+  const [adsBillingDaily, setAdsBillingDaily] = useState<AdsBillingDaily[]>([]);
+  const [totalRechargesPaid, setTotalRechargesPaid] = useState(0);
+  const [totalFreeCredits, setTotalFreeCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -25,10 +28,14 @@ export default function Dashboard() {
       const calcOrders = calculateProfit(
         data.orders, 
         data.ads, 
-        data.costs
+        data.costs,
+        data.adsBillingDaily
       );
       setOrders(calcOrders);
       setAds(data.ads);
+      setAdsBillingDaily(data.adsBillingDaily || []);
+      setTotalRechargesPaid(data.totalRechargesPaid || 0);
+      setTotalFreeCredits(data.totalFreeCredits || 0);
 
       const products = new Set<string>();
       calcOrders.forEach(o => {
@@ -66,6 +73,7 @@ export default function Dashboard() {
   const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
+    let tAdsCost = 0;
     let validOrdersCount = 0;
     let cancelledCount = 0;
     let totalReceived = 0;
@@ -105,6 +113,7 @@ export default function Dashboard() {
 
       tr += order.total_revenue;
       tProductCost += order.product_cost;
+      tAdsCost += order.ads_cost;
       validOrdersCount++;
 
       if (order.payout_amount !== undefined && order.payout_amount !== null) {
@@ -124,33 +133,35 @@ export default function Dashboard() {
       dailyData[dateStr].ads += order.ads_cost;
     });
 
-    const filteredAds = ads.filter(ad => {
-      // Date range filter on ads period: "DD/MM/YYYY - DD/MM/YYYY"
-      const parts = ad.report_period.split(' - ');
-      if (parts.length === 2) {
-        const [adStartStr, adEndStr] = parts;
-        const [sDay, sMonth, sYear] = adStartStr.split('/');
-        const [eDay, eMonth, eYear] = adEndStr.split('/');
-        
-        const adStart = `${sYear}-${sMonth}-${sDay}`;
-        const adEnd = `${eYear}-${eMonth}-${eDay}`;
+    // If no billing data, fall back to the old ads table filtering
+    let realTotalAdsCost = tAdsCost;
+    if (adsBillingDaily.length === 0) {
+      const filteredAds = ads.filter(ad => {
+        const parts = ad.report_period.split(' - ');
+        if (parts.length === 2) {
+          const [adStartStr, adEndStr] = parts;
+          const [sDay, sMonth, sYear] = adStartStr.split('/');
+          const [eDay, eMonth, eYear] = adEndStr.split('/');
+          
+          const adStart = `${sYear}-${sMonth}-${sDay}`;
+          const adEnd = `${eYear}-${eMonth}-${eDay}`;
 
-        if (startDate && adEnd < startDate) return false;
-        if (endDate && adStart > endDate) return false;
-      }
+          if (startDate && adEnd < startDate) return false;
+          if (endDate && adStart > endDate) return false;
+        }
 
-      // Product filter matching any of the selected products
-      const matched = selectedProducts.some(p => {
-        const adLower = ad.ad_name.toLowerCase();
-        const prodLower = p.toLowerCase();
-        return adLower.includes(prodLower) || prodLower.includes(adLower);
+        const matched = selectedProducts.some(p => {
+          const adLower = ad.ad_name.toLowerCase();
+          const prodLower = p.toLowerCase();
+          return adLower.includes(prodLower) || prodLower.includes(adLower);
+        });
+        if (!matched) return false;
+
+        return true;
       });
-      if (!matched) return false;
+      realTotalAdsCost = filteredAds.reduce((sum, ad) => sum + ad.cost, 0);
+    }
 
-      return true;
-    });
-
-    const realTotalAdsCost = filteredAds.reduce((sum, ad) => sum + ad.cost, 0);
     const tp = tr - tProductCost - realTotalAdsCost;
 
     return {
@@ -165,7 +176,7 @@ export default function Dashboard() {
       totalReceived,
       totalPending
     };
-  }, [orders, ads, startDate, endDate, selectedProducts, selectedValueRange]);
+  }, [orders, ads, adsBillingDaily, startDate, endDate, selectedProducts, selectedValueRange]);
 
   // Remove availableMonths since we use calendar inputs now
 
@@ -372,6 +383,21 @@ export default function Dashboard() {
             <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalAdsCost.toFixed(2)}</h3>
           </div>
         </div>
+
+        {totalRechargesPaid > 0 && (
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+            <div style={{ padding: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: '12px', color: 'var(--warning)' }}>
+              <Wallet size={20} />
+            </div>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Total Investido (Recargas)</p>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalRechargesPaid.toFixed(2)}</h3>
+              {totalFreeCredits > 0 && (
+                <p style={{ color: 'var(--success)', fontSize: '0.625rem', marginTop: '0.125rem' }}>Bônus gratuito: R$ {totalFreeCredits.toFixed(2)}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
           <div style={{ padding: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', color: 'var(--success)' }}>

@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import * as xlsx from 'xlsx';
 import Papa from 'papaparse';
-import { upsertAds, upsertOrders, upsertPayouts } from '@/app/actions';
-import { UploadCloud, CheckCircle, AlertCircle, CreditCard } from 'lucide-react';
+import { upsertAds, upsertOrders, upsertPayouts, upsertAdsBilling } from '@/app/actions';
+import { UploadCloud, CheckCircle, AlertCircle, CreditCard, Receipt } from 'lucide-react';
 
 export default function ImportPage() {
   const [loading, setLoading] = useState(false);
@@ -60,6 +60,100 @@ export default function ImportPage() {
     });
   };
 
+  const handleAdsBillingUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setMessage(null);
+    const fileName = file.name;
+
+    Papa.parse(file, {
+      complete: async (results) => {
+        try {
+          const data = results.data as string[][];
+
+          // Find the data header row: "Seqüência,Tempo,Descrição,quantidade,Observação"
+          const headerIndex = data.findIndex(row =>
+            row[0]?.trim() === 'Seqüência' || row[0]?.trim() === 'Sequência'
+          );
+          if (headerIndex === -1) {
+            throw new Error('Formato de CSV inválido: cabeçalho "Seqüência, Tempo, Descrição, quantidade, Observação" não encontrado.');
+          }
+
+          const rows = data.slice(headerIndex + 1).filter(row => row.length >= 4 && row[0]?.trim());
+
+          const billingData = rows.map(row => {
+            const sequenceNumber = parseInt(row[0]?.trim()) || 0;
+            const timeStr = row[1]?.trim() || '';
+            const description = row[2]?.trim() || '';
+            const amount = parseFloat(row[3]?.trim().replace(',', '.')) || 0;
+            const observation = row[4]?.trim() || '-';
+
+            // Parse date from DD/MM/YYYY to YYYY-MM-DD
+            let transactionDate = '';
+            const dateParts = timeStr.split('/');
+            if (dateParts.length === 3) {
+              transactionDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+            }
+
+            // Extract "Crédito Pago" and "Crédito Gratuito" from observation
+            let creditPaid: number | null = null;
+            let creditFree: number | null = null;
+
+            if (observation !== '-') {
+              const paidMatch = observation.match(/Cr[eé]dito Pago:\s*([\d.,]+)/i);
+              const freeMatch = observation.match(/Cr[eé]dito Gratuito:\s*([\d.,]+)/i);
+
+              if (paidMatch) {
+                creditPaid = parseFloat(paidMatch[1].replace(',', '.')) || null;
+              }
+              if (freeMatch) {
+                creditFree = parseFloat(freeMatch[1].replace(',', '.')) || null;
+              }
+            }
+
+            return {
+              sequence_number: sequenceNumber,
+              transaction_date: transactionDate,
+              description,
+              amount,
+              observation,
+              credit_paid: creditPaid,
+              credit_free: creditFree,
+              import_file: fileName,
+            };
+          }).filter(r => r.sequence_number > 0 && r.transaction_date);
+
+          if (billingData.length === 0) {
+            throw new Error('Nenhuma transação válida encontrada no CSV.');
+          }
+
+          const result = await upsertAdsBilling(billingData);
+
+          if (result.skippedCount > 0 && result.insertedCount === 0) {
+            setMessage({
+              type: 'success',
+              text: `Arquivo já importado anteriormente. Todos os ${result.skippedCount} registros já existem no banco.`
+            });
+          } else {
+            setMessage({
+              type: 'success',
+              text: `Sucesso! ${result.insertedCount} transações importadas.${result.skippedCount > 0 ? ` ${result.skippedCount} já existentes (ignoradas).` : ''}`
+            });
+          }
+        } catch (error) {
+          const err = error as Error;
+          setMessage({ type: 'error', text: err.message || 'Erro ao processar arquivo de billing.' });
+        } finally {
+          setLoading(false);
+          e.target.value = '';
+        }
+      },
+      header: false
+    });
+  };
+
   const handleOrdersUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -75,44 +169,112 @@ export default function ImportPage() {
 
       const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, string | number>[];
 
-      const ordersData = rows.map(row => {
-        const quantidade = parseInt(String(row['Quantidade'] || '1')) || 1;
-        const precoOriginal = parseFloat(String(row['Preço original'] || 0)) || 0;
-        const descontoVendedor = parseFloat(String(row['Desconto do vendedor'] || 0)) || 0;
-        const cupomVendedor = parseFloat(String(row['Cupom do vendedor'] || 0)) || 0;
-        const ajusteComercial = parseFloat(String(row['Ajuste por participação em ação comercial'] || 0)) || 0;
-        const descontoLeveMais = parseFloat(String(row['Desconto da Leve Mais por Menos do vendedor'] || 0)) || 0;
-        const comissao = parseFloat(String(row['Taxa de comissão líquida'] || 0)) || 0;
-        const servico = parseFloat(String(row['Taxa de serviço líquida'] || 0)) || 0;
-        const transacao = parseFloat(String(row['Taxa de transação'] || 0)) || 0;
-        const taxaEnvioReversa = parseFloat(String(row['Taxa de Envio Reversa'] || 0)) || 0;
-        
-        const descontosExtras = cupomVendedor + ajusteComercial + descontoLeveMais;
-        const receitaLiquida = (precoOriginal * quantidade) - descontoVendedor - descontosExtras - comissao - servico - transacao - taxaEnvioReversa;
+      // Group rows by Order ID to prevent database unique constraint errors for multi-item orders
+      const groupedOrdersMap = new Map<string, Record<string, string | number>[]>();
+      for (const row of rows) {
+        const orderId = String(row['ID do pedido'] || '').trim();
+        if (!orderId) continue;
+        if (!groupedOrdersMap.has(orderId)) {
+          groupedOrdersMap.set(orderId, []);
+        }
+        groupedOrdersMap.get(orderId)!.push(row);
+      }
 
-        const statusDevolucao = String(row['Status da Devolução / Reembolso'] || '');
-        let status = String(row['Status do pedido'] || 'Desconhecido');
-        if (
-          statusDevolucao.toLowerCase().includes('solicitação aprovada') ||
-          statusDevolucao.toLowerCase().includes('devolução em andamento')
-        ) {
+      const ordersData = Array.from(groupedOrdersMap.entries()).map(([orderId, orderRows]) => {
+        const firstRow = orderRows[0];
+        
+        // Product name: concatenate product names for all items in the order
+        const productNames = Array.from(
+          new Set(orderRows.map(row => String(row['Nome do Produto'] || '').trim()))
+        ).filter(Boolean).join(' + ');
+
+        // Quantity: sum of quantities of all items in the order
+        const totalQuantity = orderRows.reduce(
+          (sum, row) => sum + (parseInt(String(row['Quantidade'] || '1')) || 1),
+          0
+        );
+
+        // Original price: sum of original prices
+        const totalOriginalPrice = orderRows.reduce(
+          (sum, row) => sum + (parseFloat(String(row['Preço original'] || 0)) || 0),
+          0
+        );
+
+        // Seller discount: sum of seller discounts
+        const totalSellerDiscount = orderRows.reduce(
+          (sum, row) => sum + (parseFloat(String(row['Desconto do vendedor'] || 0)) || 0),
+          0
+        );
+
+        // Order-level values that are repeated across all rows in the group:
+        // Cupom do vendedor, Ajuste, Desconto Leve Mais, Comissão, Serviço, Transação, Taxa Envio Reversa
+        const cupomVendedor = parseFloat(String(firstRow['Cupom do vendedor'] || 0)) || 0;
+        const ajusteComercial = parseFloat(String(firstRow['Ajuste por participação em ação comercial'] || 0)) || 0;
+        const descontoLeveMais = parseFloat(String(firstRow['Desconto da Leve Mais por Menos do vendedor'] || 0)) || 0;
+        const comissao = parseFloat(String(firstRow['Taxa de comissão líquida'] || 0)) || 0;
+        const servico = parseFloat(String(firstRow['Taxa de serviço líquida'] || 0)) || 0;
+        const transacao = parseFloat(String(firstRow['Taxa de transação'] || 0)) || 0;
+        const taxaEnvioReversa = parseFloat(String(firstRow['Taxa de Envio Reversa'] || 0)) || 0;
+
+        const descontosExtras = cupomVendedor + ajusteComercial + descontoLeveMais;
+
+        // Calculate total product subtotal (original price * quantity) for all items
+        const totalProductSubtotal = orderRows.reduce((sum, row) => {
+          const qty = parseInt(String(row['Quantidade'] || '1')) || 1;
+          const price = parseFloat(String(row['Preço original'] || 0)) || 0;
+          return sum + (price * qty);
+        }, 0);
+
+        const receitaLiquida = totalProductSubtotal - totalSellerDiscount - descontosExtras - comissao - servico - transacao - taxaEnvioReversa;
+
+        // Determine order status (if any item is cancelled, the entire order is Cancelado)
+        let status = 'Desconhecido';
+        let isCancelled = false;
+        
+        for (const row of orderRows) {
+          const statusDevolucao = String(row['Status da Devolução / Reembolso'] || '');
+          const rowStatus = String(row['Status do pedido'] || 'Desconhecido');
+          if (
+            statusDevolucao.toLowerCase().includes('solicitação aprovada') ||
+            statusDevolucao.toLowerCase().includes('devolução em andamento') ||
+            rowStatus.toLowerCase().includes('cancelado')
+          ) {
+            isCancelled = true;
+          }
+          if (rowStatus !== 'Desconhecido') {
+            status = rowStatus;
+          }
+        }
+        if (isCancelled) {
           status = 'Cancelado';
         }
 
+        let orderDate = '';
+        const rawDate = firstRow['Data de criação do pedido'];
+        if (rawDate) {
+          const parsedDate = new Date(String(rawDate));
+          if (!isNaN(parsedDate.getTime())) {
+            orderDate = parsedDate.toISOString();
+          }
+        }
+        if (!orderDate) {
+          orderDate = new Date().toISOString();
+        }
+
         return {
-          order_id: String(row['ID do pedido'] || ''),
-          order_date: new Date(String(row['Data de criação do pedido'])).toISOString(),
-          product_name: String(row['Nome do Produto'] || ''),
-          quantity: quantidade,
+          order_id: orderId,
+          order_date: orderDate,
+          product_name: productNames,
+          quantity: totalQuantity,
           total_revenue: receitaLiquida,
           commission_fee: comissao,
           service_fee: servico,
           status: status,
-          original_price: precoOriginal,
-          seller_discount: descontoVendedor,
+          original_price: totalOriginalPrice,
+          seller_discount: totalSellerDiscount,
           seller_coupon: descontosExtras,
         };
-      }).filter(order => order.order_id); // Filter out empty rows
+      });
 
       // Upsert into Supabase using Server Action
       await upsertOrders(ordersData);
@@ -248,14 +410,14 @@ export default function ImportPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
         {/* Orders Upload */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '2.5rem 2rem' }}>
           <div style={{ backgroundColor: 'rgba(79, 70, 229, 0.1)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem', color: 'var(--primary)' }}>
-            <UploadCloud size={40} />
+            <UploadCloud size={36} />
           </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Planilha de Pedidos</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>Faça upload do arquivo .xlsx exportado da Shopee contendo todos os pedidos.</p>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Planilha de Pedidos</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.8125rem' }}>Arquivo .xlsx de pedidos exportado da Shopee.</p>
           
           <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
             Selecionar Arquivo (XLSX)
@@ -264,12 +426,12 @@ export default function ImportPage() {
         </div>
 
         {/* Balance Upload */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '2.5rem 2rem' }}>
           <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem', color: 'var(--success)' }}>
-            <CreditCard size={40} />
+            <CreditCard size={36} />
           </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Planilha de Balanço</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>Faça upload do arquivo .xlsx de transações de saldo (payouts e recebimentos).</p>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Planilha de Balanço</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.8125rem' }}>Arquivo .xlsx de transações de saldo (payouts).</p>
           
           <label className="btn btn-primary" style={{ cursor: 'pointer', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
             Selecionar Balanço (XLSX)
@@ -277,13 +439,32 @@ export default function ImportPage() {
           </label>
         </div>
 
-        {/* Ads Upload */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem' }}>
-          <div style={{ backgroundColor: 'rgba(79, 70, 229, 0.1)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem', color: 'var(--primary)' }}>
-            <UploadCloud size={40} />
+        {/* Ads Billing Upload (NEW) */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '2.5rem 2rem', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+          <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem', color: 'var(--warning)' }}>
+            <Receipt size={36} />
           </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Relatório de Ads (CSV)</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>Faça upload do arquivo .csv de anúncios (Dados Gerais de Anúncios Shopee).</p>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Faturamento de Ads</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.8125rem' }}>
+            Histórico de transações de anúncios (recargas e deduções). Arquivo CSV exportado da Shopee Ads.
+          </p>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.6875rem', fontStyle: 'italic' }}>
+            Duplicatas são ignoradas automaticamente.
+          </p>
+          
+          <label className="btn btn-secondary" style={{ cursor: 'pointer', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+            Selecionar Billing (CSV)
+            <input type="file" accept=".csv" onChange={handleAdsBillingUpload} disabled={loading} style={{ display: 'none' }} />
+          </label>
+        </div>
+
+        {/* Ads Report Upload (old) */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '2.5rem 2rem', opacity: 0.6 }}>
+          <div style={{ backgroundColor: 'rgba(79, 70, 229, 0.1)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem', color: 'var(--primary)' }}>
+            <UploadCloud size={36} />
+          </div>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Relatório de Ads <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>(legado)</span></h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.8125rem' }}>CSV de dados gerais de anúncios por produto.</p>
           
           <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
             Selecionar Arquivo (CSV)

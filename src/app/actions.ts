@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { Order, AdData, ProductCost } from '@/utils/profitCalculator';
+import { Order, AdData, ProductCost, AdsBillingRecord, AdsBillingDaily } from '@/utils/profitCalculator';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -11,20 +11,52 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function fetchDashboardData() {
   try {
-    const [ordersRes, adsRes, costsRes] = await Promise.all([
+    const [ordersRes, adsRes, costsRes, billingRes] = await Promise.all([
       supabase.from('shopee_orders').select('*').order('order_date', { ascending: true }),
       supabase.from('shopee_ads').select('*'),
-      supabase.from('product_costs').select('*')
+      supabase.from('product_costs').select('*'),
+      supabase.from('shopee_ads_billing').select('*').order('transaction_date', { ascending: true })
     ]);
 
     if (ordersRes.error) throw ordersRes.error;
     if (adsRes.error) throw adsRes.error;
     if (costsRes.error) throw costsRes.error;
+    // billing table might not exist yet — treat as empty
+    const billingData = billingRes.error ? [] : (billingRes.data as AdsBillingRecord[] || []);
+
+    // Aggregate billing data by day (only deductions = negative amounts)
+    const dailyMap = new Map<string, AdsBillingDaily>();
+    let totalRechargesPaid = 0;
+    let totalFreeCredits = 0;
+
+    for (const record of billingData) {
+      const dateStr = record.transaction_date; // DATE format: YYYY-MM-DD
+      if (record.amount < 0) {
+        // Deduction (actual ad spend)
+        const existing = dailyMap.get(dateStr);
+        if (existing) {
+          existing.total_spent += Math.abs(record.amount);
+        } else {
+          dailyMap.set(dateStr, { date: dateStr, total_spent: Math.abs(record.amount) });
+        }
+      } else {
+        // Recharge — track real money invested
+        if (record.credit_paid !== null && record.credit_paid !== undefined) {
+          totalRechargesPaid += record.credit_paid;
+          totalFreeCredits += (record.credit_free || 0);
+        } else {
+          totalRechargesPaid += record.amount;
+        }
+      }
+    }
 
     return {
       orders: ordersRes.data as Order[] || [],
       ads: adsRes.data as AdData[] || [],
-      costs: costsRes.data as ProductCost[] || []
+      costs: costsRes.data as ProductCost[] || [],
+      adsBillingDaily: Array.from(dailyMap.values()),
+      totalRechargesPaid,
+      totalFreeCredits,
     };
   } catch (error) {
     console.error('Error in fetchDashboardData:', error);
@@ -47,6 +79,57 @@ export async function upsertAds(adsData: unknown[]) {
 
 export async function upsertOrders(ordersData: unknown[]) {
   try {
+    const typedOrders = ordersData as { product_name: string }[];
+    
+    // 1. Fetch existing product costs
+    const { data: existingCosts, error: costsError } = await supabase
+      .from('product_costs')
+      .select('search_term');
+    
+    if (costsError) {
+      console.error('Error fetching product costs in upsertOrders:', costsError);
+    } else {
+      // 2. Identify unique product names in the imported orders that have no matching cost terms
+      const costTerms = existingCosts || [];
+      const unmatchedNames = new Set<string>();
+
+      for (const order of typedOrders) {
+        if (!order.product_name) continue;
+        const lowerName = order.product_name.toLowerCase();
+        
+        // Check if this product name matches any existing search term
+        const isMatched = costTerms.some(item => 
+          lowerName.includes(item.search_term.toLowerCase())
+        );
+
+        if (!isMatched) {
+          unmatchedNames.add(order.product_name.trim());
+        }
+      }
+
+      // 3. Insert unmatched product names into product_costs table with cost = 0.00
+      if (unmatchedNames.size > 0) {
+        const insertData = Array.from(unmatchedNames).map(name => ({
+          search_term: name,
+          cost: 0.00
+        }));
+
+        const { error: insertError } = await supabase
+          .from('product_costs')
+          .upsert(insertData, { 
+            onConflict: 'search_term', 
+            ignoreDuplicates: true 
+          });
+
+        if (insertError) {
+          console.error('Error auto-inserting missing product costs:', insertError);
+        } else {
+          console.log(`Auto-inserted ${insertData.length} missing product costs with zero value.`);
+        }
+      }
+    }
+
+    // 4. Proceed with upserting the orders
     const { error } = await supabase.from('shopee_orders').upsert(ordersData, { onConflict: 'order_id' });
     if (error) throw error;
     return { success: true };
@@ -180,3 +263,87 @@ export async function updateProductCost(editingTerm: string, costNum: number) {
     throw new Error(err.message || 'Failed to update product cost');
   }
 }
+
+export async function upsertAdsBilling(billingData: Omit<AdsBillingRecord, 'id'>[]) {
+  try {
+    if (billingData.length === 0) return { success: true, insertedCount: 0, skippedCount: 0 };
+
+    const dates = billingData.map(r => r.transaction_date).filter(Boolean);
+    if (dates.length === 0) return { success: true, insertedCount: 0, skippedCount: 0 };
+
+    const minDate = dates.reduce((min, d) => d < min ? d : min, dates[0]);
+    const maxDate = dates.reduce((max, d) => d > max ? d : max, dates[0]);
+
+    // Fetch existing records in this date range to prevent duplicates
+    const { data: existingRecords, error: fetchError } = await supabase
+      .from('shopee_ads_billing')
+      .select('transaction_date, description, amount, observation')
+      .gte('transaction_date', minDate)
+      .lte('transaction_date', maxDate);
+
+    if (fetchError) throw fetchError;
+
+    const existingKeys = new Set(
+      (existingRecords || []).map(r => 
+        `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`
+      )
+    );
+
+    // Deduplicate incoming billingData internally (defensive programming)
+    const uniqueIncoming = [];
+    const seenIncomingKeys = new Set();
+    for (const r of billingData) {
+      const key = `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`;
+      if (!seenIncomingKeys.has(key)) {
+        seenIncomingKeys.add(key);
+        uniqueIncoming.push(r);
+      }
+    }
+
+    // Filter out rows that already exist in the database
+    const newRecords = uniqueIncoming.filter(r => {
+      const key = `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`;
+      return !existingKeys.has(key);
+    });
+
+    const skippedCount = billingData.length - newRecords.length;
+
+    if (newRecords.length > 0) {
+      // Try to upsert using the new constraint
+      const { error: insertError } = await supabase
+        .from('shopee_ads_billing')
+        .upsert(newRecords, {
+          onConflict: 'transaction_date,description,amount,observation',
+          ignoreDuplicates: true
+        });
+
+      // If the migration hasn't been run yet, the new constraint doesn't exist,
+      // and upsert will fail with Postgres code '42P10'. Fall back to old constraint.
+      if (insertError) {
+        if (insertError.code === '42P10') {
+          console.warn('New unique constraint not found in database. Falling back to old constraint upsert.');
+          const { error: fallbackError } = await supabase
+            .from('shopee_ads_billing')
+            .upsert(newRecords, {
+              onConflict: 'sequence_number,transaction_date,amount',
+              ignoreDuplicates: true
+            });
+          if (fallbackError) throw fallbackError;
+        } else {
+          throw insertError;
+        }
+      }
+    }
+
+    return { 
+      success: true, 
+      insertedCount: newRecords.length, 
+      skippedCount 
+    };
+  } catch (error) {
+    console.error('Error in upsertAdsBilling:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to import ads billing data');
+  }
+}
+
