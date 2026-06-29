@@ -91,9 +91,39 @@ export function calculateProfit(
 
     // Sum costs for all matching search terms (e.g. "Windows 11" and "Office 2024" in the same product)
     let matchedCosts = 0;
+    const orderDateStr = order.order_date.split('T')[0]; // YYYY-MM-DD
+    const isAfterZeroCostDate = orderDateStr >= '2026-06-21';
+
     for (const costItem of costs) {
-      if (lowerName.includes(costItem.search_term.toLowerCase())) {
-        matchedCosts += costItem.cost;
+      const termLower = costItem.search_term.toLowerCase();
+      if (lowerName.includes(termLower)) {
+        let isZeroCost = false;
+        
+        if (isAfterZeroCostDate) {
+          const matchesZeroCostProduct = 
+            lowerName.includes('windows 10') ||
+            lowerName.includes('windows 11') ||
+            lowerName.includes('office 2021') ||
+            lowerName.includes('office 2016');
+
+          if (matchesZeroCostProduct) {
+            const isZeroCostTerm = 
+              termLower.includes('windows 10') ||
+              termLower.includes('windows 11') ||
+              termLower.includes('office 2021') ||
+              termLower.includes('office 2016') ||
+              (termLower.includes('windows') && (lowerName.includes('windows 10') || lowerName.includes('windows 11'))) ||
+              (termLower.includes('office') && (lowerName.includes('office 2021') || lowerName.includes('office 2016')));
+
+            if (isZeroCostTerm) {
+              isZeroCost = true;
+            }
+          }
+        }
+
+        if (!isZeroCost) {
+          matchedCosts += costItem.cost;
+        }
       }
     }
     product_cost = matchedCosts > 0 ? matchedCosts : 0;
