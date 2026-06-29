@@ -144,12 +144,12 @@ export default function ResgatarPage() {
           </div>
           
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#f3f4f6' }}>
-            {isPendingKey ? 'Pedido Registrado!' : 'Solicitação Recebida!'}
+            Pedido em Processamento!
           </h2>
           <p style={{ color: '#9ca3af', fontSize: '0.925rem', marginBottom: '2rem', lineHeight: '1.5' }}>
             {isPendingKey 
-              ? 'O estoque de chaves para este produto esgotou temporariamente. Nossa equipe já foi alertada e enviará a sua licença em instantes para o seu e-mail.'
-              : 'Como o seu pedido ainda não foi importado no sistema, nossa equipe fará a validação manual do número do pedido e enviará a chave para o seu e-mail cadastrado em até 10 minutos.'}
+              ? 'Sua chave de licença está sendo gerada pelo sistema. Em instantes, o código e o passo a passo completo de instalação serão enviados para o seu e-mail!'
+              : 'Seu pedido está sendo processado em nosso sistema. Em instantes, enviaremos a sua chave de ativação e todas as instruções detalhadas de instalação diretamente para o seu e-mail cadastrado!'}
           </p>
 
           <div style={{ backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', padding: '1.25rem', marginBottom: '2rem', textAlign: 'left' }}>
