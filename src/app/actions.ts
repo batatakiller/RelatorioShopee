@@ -436,16 +436,6 @@ export async function saveLeadAndSendKey(
       if (matchedKey) {
         licenseKeyText = matchedKey.key_code;
         statusVal = 'sent';
-
-        // Mark key as used
-        await supabase
-          .from('license_keys')
-          .update({
-            is_used: true,
-            order_id: orderIdClean,
-            used_at: new Date().toISOString()
-          })
-          .eq('id', matchedKey.id);
       }
     } else {
       statusVal = 'pending_verification';
@@ -618,15 +608,6 @@ export async function approveLead(leadId: string) {
     if (!matchedKey) {
       throw new Error(`Nenhuma chave disponível para o produto "${lead.product_name}".`);
     }
-
-    await supabase
-      .from('license_keys')
-      .update({
-        is_used: true,
-        order_id: lead.order_id,
-        used_at: new Date().toISOString()
-      })
-      .eq('id', matchedKey.id);
 
     const { data: updatedLead } = await supabase
       .from('leads')

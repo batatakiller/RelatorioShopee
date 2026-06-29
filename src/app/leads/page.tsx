@@ -164,11 +164,9 @@ export default function LeadsDashboard() {
     return importedOrderIds.includes(orderId);
   };
 
-  // Available key counts
+  // Registered key counts
   const keyCounts = keys.reduce((acc, k) => {
-    if (!k.is_used) {
-      acc[k.product_name] = (acc[k.product_name] || 0) + 1;
-    }
+    acc[k.product_name] = (acc[k.product_name] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -182,8 +180,7 @@ export default function LeadsDashboard() {
 
   const filteredKeys = keys.filter(k => 
     k.key_code.toLowerCase().includes(keySearch.toLowerCase()) ||
-    k.product_name.toLowerCase().includes(keySearch.toLowerCase()) ||
-    (k.order_id && k.order_id.toLowerCase().includes(keySearch.toLowerCase()))
+    k.product_name.toLowerCase().includes(keySearch.toLowerCase())
   );
 
   const statusBadge = (status: string) => {
@@ -275,7 +272,7 @@ export default function LeadsDashboard() {
             gap: '0.5rem'
           }}
         >
-          <Key size={18} /> Estoque de Chaves ({keys.filter(k => !k.is_used).length} livres)
+          <Key size={18} /> Estoque de Chaves ({keys.length})
         </button>
       </div>
 
@@ -504,8 +501,6 @@ export default function LeadsDashboard() {
                     <tr>
                       <th>Produto</th>
                       <th>Chave (Código)</th>
-                      <th>Situação</th>
-                      <th>Pedido Utilizado</th>
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -515,18 +510,6 @@ export default function LeadsDashboard() {
                         <tr key={k.id}>
                           <td style={{ fontWeight: '600', fontSize: '0.875rem' }}>{k.product_name}</td>
                           <td style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>{k.key_code}</td>
-                          <td>
-                            {k.is_used ? (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Em Uso</span>
-                            ) : (
-                              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '0.15rem' }}>
-                                <Check size={10} /> Disponível
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                            {k.order_id ? `#${k.order_id}` : '-'}
-                          </td>
                           <td>
                             <button 
                               onClick={() => handleDeleteKey(k.id)}
@@ -552,7 +535,7 @@ export default function LeadsDashboard() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        <td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                           Nenhuma chave cadastrada em estoque.
                         </td>
                       </tr>
