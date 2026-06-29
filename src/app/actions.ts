@@ -12,6 +12,44 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 // Initialize server-side supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+function findMatchingKey(orderProductName: string, keys: any[]): any | null {
+  const prodLower = orderProductName.toLowerCase();
+  
+  // 1. Check for Office products
+  if (prodLower.includes('office')) {
+    if (prodLower.includes('2024')) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2024'));
+      if (match) return match;
+    }
+    if (prodLower.includes('2021')) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2021'));
+      if (match) return match;
+    }
+    if (prodLower.includes('2016')) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2016'));
+      if (match) return match;
+    }
+  }
+
+  // 2. Check for Windows products
+  if (prodLower.includes('windows')) {
+    if (prodLower.includes('11')) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('windows') && k.product_name.toLowerCase().includes('11'));
+      if (match) return match;
+    }
+    if (prodLower.includes('10')) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('windows') && k.product_name.toLowerCase().includes('10'));
+      if (match) return match;
+    }
+  }
+
+  // 3. Fallback: standard includes search (either way)
+  return keys.find(k => 
+    prodLower.includes(k.product_name.toLowerCase()) || 
+    k.product_name.toLowerCase().includes(prodLower)
+  ) || null;
+}
+
 export async function fetchDashboardData() {
   try {
     const [ordersRes, adsRes, costsRes, billingRes, supplierPaymentsRes] = await Promise.all([
@@ -446,9 +484,7 @@ export async function saveLeadAndSendKey(
         .eq('is_used', false);
 
       const keysList = availableKeys || [];
-      const matchedKey = keysList.find(k => 
-        matchedProductName.toLowerCase().includes(k.product_name.toLowerCase())
-      );
+      const matchedKey = findMatchingKey(matchedProductName, keysList);
 
       if (matchedKey) {
         licenseKeyText = matchedKey.key_code;
@@ -814,9 +850,7 @@ export async function approveLead(leadId: string) {
       .eq('is_used', false);
 
     const keysList = availableKeys || [];
-    const matchedKey = keysList.find(k => 
-      lead.product_name.toLowerCase().includes(k.product_name.toLowerCase())
-    );
+    const matchedKey = findMatchingKey(lead.product_name, keysList);
 
     if (!matchedKey) {
       throw new Error(`Nenhuma chave disponível para o produto "${lead.product_name}".`);
