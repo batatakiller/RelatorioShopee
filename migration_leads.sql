@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
 CREATE TABLE IF NOT EXISTS public.license_keys (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     product_name TEXT NOT NULL, -- ex: 'Windows 11', 'Office 2021', etc.
-    key_code TEXT NOT NULL UNIQUE,
+    key_code TEXT NOT NULL,
     is_used BOOLEAN DEFAULT FALSE,
     order_id TEXT,
     used_at TIMESTAMP WITH TIME ZONE,
