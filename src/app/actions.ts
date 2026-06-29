@@ -401,6 +401,23 @@ export async function saveLeadAndSendKey(
     const nameClean = name.trim();
     const emailClean = email.trim();
 
+    // 0. Check if a lead for this order has already been registered
+    const { data: existingLead } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('order_id', orderIdClean)
+      .maybeSingle();
+
+    if (existingLead) {
+      return { 
+        success: true, 
+        status: existingLead.status, 
+        lead: existingLead,
+        isDuplicate: true,
+        message: `Este pedido já foi resgatado anteriormente para o e-mail: ${existingLead.email}`
+      };
+    }
+
     // 1. Search for order in database
     const { data: order, error: orderError } = await supabase
       .from('shopee_orders')

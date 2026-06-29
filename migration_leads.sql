@@ -1,7 +1,7 @@
 -- Criar tabela de leads (compradores que resgataram a licença)
 CREATE TABLE IF NOT EXISTS public.leads (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    order_id TEXT NOT NULL,
+    order_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     product_name TEXT,

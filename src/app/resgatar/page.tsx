@@ -35,10 +35,14 @@ export default function ResgatarPage() {
       );
 
       if (res.success) {
-        if (res.status === 'pending_verification' && !showProductSelector) {
+        if (res.isDuplicate) {
+          alert(res.message || 'Este pedido já foi resgatado.');
+        }
+
+        if (res.status === 'pending_verification' && !showProductSelector && !res.isDuplicate) {
           // If order not found and we haven't prompted them for the product, show the selector
           setShowProductSelector(true);
-          setSelectedProduct('Windows 11'); // default choice
+          setSelectedProduct('Windows 11 Pro'); // default choice
         } else {
           setResult({
             status: res.status as 'sent' | 'pending_verification' | 'pending_key',
