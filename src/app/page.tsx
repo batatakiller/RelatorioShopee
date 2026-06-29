@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { fetchDashboardData } from '@/app/actions';
-import { AdData, AdsBillingDaily, CalculatedOrder, calculateProfit } from '@/utils/profitCalculator';
+import { fetchDashboardData, addSupplierPayment, deleteSupplierPayment } from '@/app/actions';
+import { AdData, AdsBillingDaily, CalculatedOrder, calculateProfit, SupplierPayment } from '@/utils/profitCalculator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle, Wallet, History, Plus, Trash2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 export default function Dashboard() {
@@ -19,6 +19,58 @@ export default function Dashboard() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+
+  const openPaymentModal = () => {
+    setPaymentAmount('');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentNotes('');
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountNum = parseFloat(paymentAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert('Por favor, insira um valor válido maior que zero.');
+      return;
+    }
+    
+    setIsSavingPayment(true);
+    try {
+      await addSupplierPayment(amountNum, paymentDate, paymentNotes);
+      await fetchData();
+      setPaymentAmount('');
+      setPaymentNotes('');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar pagamento ao fornecedor.');
+    } finally {
+      setIsSavingPayment(false);
+    }
+  };
+
+  const handleDeletePayment = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este registro de pagamento?')) return;
+    
+    try {
+      await deleteSupplierPayment(id);
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir pagamento.');
+    }
+  };
+
+  const totalPaidToSupplier = useMemo(() => {
+    return supplierPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  }, [supplierPayments]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -36,6 +88,7 @@ export default function Dashboard() {
       setAdsBillingDaily(data.adsBillingDaily || []);
       setTotalRechargesPaid(data.totalRechargesPaid || 0);
       setTotalFreeCredits(data.totalFreeCredits || 0);
+      setSupplierPayments(data.supplierPayments || []);
 
       const products = new Set<string>();
       calcOrders.forEach(o => {
@@ -70,7 +123,7 @@ export default function Dashboard() {
     return Array.from(products).sort();
   }, [orders]);
 
-  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending } = useMemo(() => {
+  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending, globalProductCost } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
     let tAdsCost = 0;
@@ -78,6 +131,13 @@ export default function Dashboard() {
     let cancelledCount = 0;
     let totalReceived = 0;
     let totalPending = 0;
+
+    let gProductCost = 0;
+    orders.forEach(order => {
+      if (!order.status?.toLowerCase().includes('cancelado')) {
+        gProductCost += order.product_cost;
+      }
+    });
 
     const dailyData: Record<string, { date: string, revenue: number, profit: number, ads: number }> = {};
 
@@ -174,7 +234,8 @@ export default function Dashboard() {
       chartData: Object.values(dailyData),
       filteredOrders: filtered,
       totalReceived,
-      totalPending
+      totalPending,
+      globalProductCost: gProductCost
     };
   }, [orders, ads, adsBillingDaily, startDate, endDate, selectedProducts, selectedValueRange]);
 
@@ -364,13 +425,21 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+        <div 
+          className="card" 
+          onClick={openPaymentModal}
+          style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', cursor: 'pointer' }}
+          title="Clique para ver o histórico e registrar pagamentos"
+        >
           <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)' }}>
-            <TrendingDown size={20} />
+            <History size={20} />
           </div>
           <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Custo de Produtos</p>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalProductCost.toFixed(2)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Custo de Produtos (Saldo Devedor)</p>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {(globalProductCost - totalPaidToSupplier).toFixed(2)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.625rem', marginTop: '0.125rem' }}>
+              Acumulado: R$ {globalProductCost.toFixed(2)} | Pago: R$ {totalPaidToSupplier.toFixed(2)}
+            </p>
           </div>
         </div>
         
@@ -582,6 +651,218 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* Modal de Pagamentos ao Fornecedor */}
+      {isPaymentModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--surface)',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            width: '100%',
+            maxWidth: '550px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border)',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <History size={18} style={{ color: 'var(--primary)' }} />
+                Pagamentos ao Fornecedor
+              </h3>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
+                style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              
+              {/* Summary Stats */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '1rem', 
+                padding: '1rem', 
+                backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                borderRadius: '8px',
+                border: '1px solid var(--border)'
+              }}>
+                <div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>CUSTO TOTAL ACUMULADO</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'var(--text)' }}>R$ {globalProductCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>TOTAL PAGO (ABATIDO)</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'var(--success)' }}>R$ {totalPaidToSupplier.toFixed(2)}</p>
+                </div>
+                <div style={{ gridColumn: 'span 2', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', marginTop: '0.25rem' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>SALDO DEVEDOR REMANESCENTE</p>
+                  <p style={{ fontSize: '1.375rem', fontWeight: 'bold', color: 'var(--danger)' }}>R$ {(globalProductCost - totalPaidToSupplier).toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* Add Payment Form */}
+              <form onSubmit={handleAddPayment} style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1rem', 
+                padding: '1.25rem', 
+                border: '1px solid rgba(79, 70, 229, 0.3)', 
+                backgroundColor: 'rgba(79, 70, 229, 0.03)', 
+                borderRadius: '8px' 
+              }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.25rem' }}>
+                  Registrar Novo Pagamento / Abatimento
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Valor (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      placeholder="0.00" 
+                      className="input"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      disabled={isSavingPayment}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Data do Pagamento</label>
+                    <input 
+                      type="date" 
+                      required 
+                      className="input"
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      disabled={isSavingPayment}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Observação (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Pagamento referente ao lote de junho" 
+                    className="input"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    disabled={isSavingPayment}
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                  disabled={isSavingPayment}
+                >
+                  <Plus size={16} />
+                  {isSavingPayment ? 'Salvando...' : 'Confirmar Lançamento'}
+                </button>
+              </form>
+
+              {/* Payments History List */}
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>
+                  Histórico de Abatimentos
+                </h4>
+                {supplierPayments.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', fontStyle: 'italic', textAlign: 'center', padding: '1.5rem' }}>
+                    Nenhum pagamento registrado ainda.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
+                    {supplierPayments.map((payment) => (
+                      <div 
+                        key={payment.id} 
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '0.875rem', color: 'var(--success)' }}>
+                              R$ {payment.amount.toFixed(2)}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {format(parseISO(payment.payment_date.split('T')[0]), 'dd/MM/yyyy')}
+                            </span>
+                          </div>
+                          {payment.notes && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
+                              {payment.notes}
+                            </p>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => handleDeletePayment(payment.id)}
+                          style={{ color: 'var(--text-muted)', padding: '0.25rem', transition: 'color 0.2s' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="btn btn-secondary"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

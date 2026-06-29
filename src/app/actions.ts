@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { Order, AdData, ProductCost, AdsBillingRecord, AdsBillingDaily } from '@/utils/profitCalculator';
+import { Order, AdData, ProductCost, AdsBillingRecord, AdsBillingDaily, SupplierPayment } from '@/utils/profitCalculator';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -11,11 +11,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function fetchDashboardData() {
   try {
-    const [ordersRes, adsRes, costsRes, billingRes] = await Promise.all([
+    const [ordersRes, adsRes, costsRes, billingRes, supplierPaymentsRes] = await Promise.all([
       supabase.from('shopee_orders').select('*').order('order_date', { ascending: true }),
       supabase.from('shopee_ads').select('*'),
       supabase.from('product_costs').select('*'),
-      supabase.from('shopee_ads_billing').select('*').order('transaction_date', { ascending: true })
+      supabase.from('shopee_ads_billing').select('*').order('transaction_date', { ascending: true }),
+      supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false })
     ]);
 
     if (ordersRes.error) throw ordersRes.error;
@@ -23,6 +24,8 @@ export async function fetchDashboardData() {
     if (costsRes.error) throw costsRes.error;
     // billing table might not exist yet — treat as empty
     const billingData = billingRes.error ? [] : (billingRes.data as AdsBillingRecord[] || []);
+    // supplier_payments table might not exist yet — treat as empty
+    const supplierPayments = (supplierPaymentsRes && !supplierPaymentsRes.error) ? (supplierPaymentsRes.data as SupplierPayment[] || []) : [];
 
     // Aggregate billing data by day (only deductions = negative amounts)
     const dailyMap = new Map<string, AdsBillingDaily>();
@@ -57,11 +60,46 @@ export async function fetchDashboardData() {
       adsBillingDaily: Array.from(dailyMap.values()),
       totalRechargesPaid,
       totalFreeCredits,
+      supplierPayments,
     };
   } catch (error) {
     console.error('Error in fetchDashboardData:', error);
     const err = error as Error;
     throw new Error(err.message || 'Failed to fetch dashboard data');
+  }
+}
+
+export async function addSupplierPayment(amount: number, dateStr: string, notes: string) {
+  try {
+    const { data, error } = await supabase
+      .from('supplier_payments')
+      .insert([{ 
+        amount: amount, 
+        payment_date: dateStr ? new Date(dateStr).toISOString() : new Date().toISOString(), 
+        notes: notes 
+      }])
+      .select();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error in addSupplierPayment:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to add supplier payment');
+  }
+}
+
+export async function deleteSupplierPayment(id: string) {
+  try {
+    const { error } = await supabase
+      .from('supplier_payments')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error in deleteSupplierPayment:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to delete supplier payment');
   }
 }
 

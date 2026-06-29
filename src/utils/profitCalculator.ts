@@ -28,6 +28,14 @@ export interface ProductCost {
   cost: number;
 }
 
+export interface SupplierPayment {
+  id: string;
+  payment_date: string;
+  amount: number;
+  notes?: string;
+  created_at?: string;
+}
+
 export interface AdsBillingRecord {
   id: string;
   sequence_number: number;
