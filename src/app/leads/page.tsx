@@ -7,7 +7,8 @@ import {
   approveLead, 
   deleteLead, 
   deleteLicenseKey, 
-  checkEmailReplies 
+  checkEmailReplies,
+  saveEmailTemplate
 } from '@/app/actions';
 import { 
   Mail, 
@@ -21,7 +22,9 @@ import {
   Search, 
   Database, 
   CheckCircle,
-  Inbox
+  Inbox,
+  FileText,
+  Edit3
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -46,11 +49,21 @@ interface LicenseKey {
   created_at: string;
 }
 
+interface EmailTemplate {
+  id: string;
+  product_key: string;
+  name: string;
+  template_html: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function LeadsDashboard() {
-  const [activeTab, setActiveTab] = useState<'leads' | 'keys'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'keys' | 'templates'>('leads');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [keys, setKeys] = useState<LicenseKey[]>([]);
   const [importedOrderIds, setImportedOrderIds] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [syncingIMAP, setSyncingIMAP] = useState(false);
@@ -62,17 +75,85 @@ export default function LeadsDashboard() {
   const [keySearch, setKeySearch] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
 
+  // Template Editor States
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateProductKey, setTemplateProductKey] = useState('');
+  const [templateHtml, setTemplateHtml] = useState('');
+
   const loadData = async () => {
     try {
       const res = await fetchLeadsAndKeys();
       setLeads(res.leads as Lead[]);
       setKeys(res.keys as LicenseKey[]);
       setImportedOrderIds(res.importedOrderIds);
+      setTemplates((res.templates || []) as EmailTemplate[]);
     } catch (err) {
       console.error('Error loading leads/keys:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectTemplate = (tpl: EmailTemplate | null) => {
+    if (tpl) {
+      setEditingTemplate(tpl);
+      setTemplateId(tpl.id);
+      setTemplateName(tpl.name);
+      setTemplateProductKey(tpl.product_key);
+      setTemplateHtml(tpl.template_html);
+    } else {
+      setEditingTemplate(null);
+      setTemplateId(null);
+      setTemplateName('');
+      setTemplateProductKey('');
+      setTemplateHtml('');
+    }
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateName.trim() || !templateProductKey.trim() || !templateHtml.trim()) {
+      alert('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    setActionLoading('save-template');
+    try {
+      const res = await saveEmailTemplate(templateId, templateProductKey, templateName, templateHtml);
+      if (res.success) {
+        alert('Template de e-mail salvo com sucesso!');
+        await loadData();
+        if (res.template) {
+          handleSelectTemplate(res.template as EmailTemplate);
+        }
+      } else {
+        alert('Erro ao salvar template: ' + (res.error || 'Erro desconhecido'));
+      }
+    } catch (err) {
+      alert('Erro ao salvar template.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleProductClick = (productName: string) => {
+    const matched = templates.find(t => 
+      productName.toLowerCase().includes(t.product_key.toLowerCase()) ||
+      t.product_key.toLowerCase().includes(productName.toLowerCase())
+    );
+
+    if (matched) {
+      handleSelectTemplate(matched);
+    } else {
+      setEditingTemplate(null);
+      setTemplateId(null);
+      setTemplateName(productName);
+      setTemplateProductKey(productName.toLowerCase());
+      setTemplateHtml('');
+    }
+    setActiveTab('templates');
   };
 
   useEffect(() => {
@@ -274,6 +355,27 @@ export default function LeadsDashboard() {
         >
           <Key size={18} /> Estoque de Chaves ({keys.length})
         </button>
+        <button 
+          onClick={() => {
+            setActiveTab('templates');
+            if (templates.length > 0 && !editingTemplate) {
+              handleSelectTemplate(templates[0]);
+            }
+          }}
+          style={{ 
+            padding: '1rem 1.5rem', 
+            fontSize: '0.925rem', 
+            fontWeight: '600', 
+            color: activeTab === 'templates' ? 'var(--primary)' : 'var(--text-muted)',
+            borderBottom: activeTab === 'templates' ? '2px solid var(--primary)' : '2px solid transparent',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          <FileText size={18} /> Templates de E-mail ({templates.length})
+        </button>
       </div>
 
       {/* TABS CONTENT */}
@@ -410,8 +512,14 @@ export default function LeadsDashboard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {Object.keys(keyCounts).length > 0 ? (
                   Object.entries(keyCounts).map(([prod, cnt]) => (
-                    <div key={prod} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{prod}</span>
+                    <div 
+                      key={prod} 
+                      onClick={() => handleProductClick(prod)}
+                      style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', cursor: 'pointer', padding: '0.25rem 0.5rem', borderRadius: '6px', transition: 'all 0.2s' }}
+                      title="Clique para editar o template de e-mail deste produto"
+                      className="product-list-item-clickable"
+                    >
+                      <span style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{prod}</span>
                       <span style={{ fontWeight: 'bold', color: cnt > 0 ? '#10b981' : '#ef4444' }}>{cnt} chaves</span>
                     </div>
                   ))
@@ -549,6 +657,144 @@ export default function LeadsDashboard() {
         </div>
       )}
 
+      {activeTab === 'templates' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', alignItems: 'start' }}>
+          {/* Left: Templates list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 'bold' }}>Seus Templates</h3>
+                <button 
+                  onClick={() => handleSelectTemplate(null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '0.8125rem', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  <Plus size={14} /> Novo
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {templates.length > 0 ? (
+                  templates.map((tpl) => (
+                    <div 
+                      key={tpl.id}
+                      onClick={() => handleSelectTemplate(tpl)}
+                      style={{ 
+                        padding: '0.75rem', 
+                        borderRadius: '6px', 
+                        border: '1px solid ' + (editingTemplate?.id === tpl.id ? 'var(--primary)' : 'var(--border)'), 
+                        backgroundColor: editingTemplate?.id === tpl.id ? 'rgba(79, 70, 229, 0.05)' : 'var(--surface)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold', fontSize: '0.875rem', color: editingTemplate?.id === tpl.id ? 'var(--primary)' : 'var(--text)' }}>
+                        <FileText size={14} /> {tpl.name}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
+                        Filtro: {tpl.product_key}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>
+                    Nenhum template personalizado configurado. O sistema usará os modelos padrões internos.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Template Editor */}
+          <div className="card">
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 'bold', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Edit3 size={18} style={{ color: 'var(--primary)' }} />
+              {templateId ? 'Editar Template de E-mail' : 'Criar Novo Template de E-mail'}
+            </h3>
+            
+            <form onSubmit={handleSaveTemplate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+                    Nome do Template (Ex: Windows 11 Pro)
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Nome de exibição do template"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', outline: 'none', fontSize: '0.875rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+                    Identificador de Produto (Filtro)
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: windows 11, office 2024"
+                    value={templateProductKey}
+                    onChange={(e) => setTemplateProductKey(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', outline: 'none', fontSize: '0.875rem', fontFamily: 'monospace' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                    Se o nome do produto no pedido conter esse texto, este template será selecionado.
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+                  Conteúdo HTML das Instruções
+                </label>
+                <textarea 
+                  rows={15}
+                  placeholder="Cole ou escreva o corpo HTML do template..."
+                  value={templateHtml}
+                  onChange={(e) => setTemplateHtml(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '0.75rem', backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', outline: 'none', fontFamily: 'monospace', fontSize: '0.8125rem', lineHeight: '1.4' }}
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                  📌 Dica: Insira a tag <strong>{`{licenseKey}`}</strong> exatamente onde você deseja que o código da chave de licença seja inserido automaticamente.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                {templateId && (
+                  <button 
+                    type="button"
+                    onClick={() => handleSelectTemplate(null)}
+                    style={{ padding: '0.625rem 1.25rem', backgroundColor: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                )}
+                <button 
+                  type="submit"
+                  disabled={actionLoading !== null}
+                  style={{ 
+                    padding: '0.625rem 1.5rem', 
+                    backgroundColor: 'var(--primary)', 
+                    color: 'white', 
+                    borderRadius: '6px', 
+                    fontSize: '0.875rem', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    border: 'none',
+                    opacity: actionLoading !== null ? 0.7 : 1
+                  }}
+                >
+                  {actionLoading === 'save-template' ? 'Salvando...' : 'Salvar Template'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .animate-spin {
           animation: spin 1s linear infinite;
@@ -556,6 +802,9 @@ export default function LeadsDashboard() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .product-list-item-clickable:hover {
+          background-color: rgba(79, 70, 229, 0.08);
         }
       `}</style>
     </div>

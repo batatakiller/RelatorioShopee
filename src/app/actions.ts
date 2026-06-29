@@ -715,6 +715,23 @@ async function sendActivationEmail(params: {
     `;
   };
 
+  // 1. Fetch matching template from DB
+  const { data: dbTemplates } = await supabase
+    .from('email_templates')
+    .select('*');
+
+  const templatesList = dbTemplates || [];
+  const matchedTemplate = templatesList.find(t => 
+    params.productName.toLowerCase().includes(t.product_key.toLowerCase())
+  );
+
+  let instructionsHtml = '';
+  if (matchedTemplate) {
+    instructionsHtml = matchedTemplate.template_html.replace(/{licenseKey}/g, params.licenseKey);
+  } else {
+    instructionsHtml = getProductInstructions(params.productName, params.licenseKey);
+  }
+
   const mailOptions = {
     from: '"SuperSoftware - Entrega de Licenças" <pedido@supersoftware.info>',
     to: params.email,
@@ -727,7 +744,7 @@ async function sendActivationEmail(params: {
         <h2 style="color: #4f46e5; margin-bottom: 20px;">Olá, ${params.name}!</h2>
         <p>Sua licença da SuperSoftware foi gerada com sucesso para o seu pedido da Shopee.</p>
         
-        ${getProductInstructions(params.productName, params.licenseKey)}
+        ${instructionsHtml}
 
         <div style="margin: 25px 0; border: 2px solid #feebc8; background-color: #fffaf0; border-radius: 6px; padding: 15px;">
           <p style="margin: 0; font-weight: bold; color: #c05621;">📩 ATENÇÃO - IMPORTANTE PARA GARANTIR O RECEBIMENTO:</p>
@@ -895,27 +912,30 @@ export async function deleteLicenseKey(id: string) {
 
 export async function fetchLeadsAndKeys() {
   try {
-    const [leadsRes, keysRes, ordersRes] = await Promise.all([
+    const [leadsRes, keysRes, ordersRes, templatesRes] = await Promise.all([
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
       supabase.from('license_keys').select('*').order('created_at', { ascending: false }),
-      supabase.from('shopee_orders').select('order_id')
+      supabase.from('shopee_orders').select('order_id'),
+      supabase.from('email_templates').select('*').order('name')
     ]);
 
     if (leadsRes.error) {
       // If table doesn't exist yet, return empty
       if (leadsRes.error.message.includes('relation "public.leads" does not exist')) {
-        return { leads: [], keys: [], importedOrderIds: [] };
+        return { leads: [], keys: [], importedOrderIds: [], templates: [] };
       }
       throw leadsRes.error;
     }
     if (keysRes.error) throw keysRes.error;
 
     const importedOrderIds = new Set((ordersRes.data || []).map(o => o.order_id));
+    const templates = templatesRes && !templatesRes.error ? (templatesRes.data || []) : [];
 
     return {
       leads: leadsRes.data || [],
       keys: keysRes.data || [],
-      importedOrderIds: Array.from(importedOrderIds)
+      importedOrderIds: Array.from(importedOrderIds),
+      templates
     };
   } catch (error) {
     console.error('Error in fetchLeadsAndKeys:', error);
@@ -1034,6 +1054,45 @@ export async function checkEmailReplies() {
     throw error;
   } finally {
     await client.logout();
+  }
+}
+
+export async function saveEmailTemplate(
+  id: string | null,
+  productKey: string,
+  name: string,
+  templateHtml: string
+) {
+  try {
+    const data = {
+      product_key: productKey.trim().toLowerCase(),
+      name: name.trim(),
+      template_html: templateHtml,
+      updated_at: new Date().toISOString()
+    };
+
+    let res;
+    if (id) {
+      res = await supabase
+        .from('email_templates')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+    } else {
+      res = await supabase
+        .from('email_templates')
+        .insert([data])
+        .select()
+        .single();
+    }
+
+    if (res.error) throw res.error;
+    return { success: true, template: res.data };
+  } catch (error) {
+    console.error('Error in saveEmailTemplate:', error);
+    const err = error as Error;
+    return { success: false, error: err.message || 'Failed to save template' };
   }
 }
 
