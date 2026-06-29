@@ -2,6 +2,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { Order, AdData, ProductCost, AdsBillingRecord, AdsBillingDaily, SupplierPayment } from '@/utils/profitCalculator';
+import { headers } from 'next/headers';
+import { ImapFlow } from 'imapflow';
+import nodemailer from 'nodemailer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -382,6 +385,478 @@ export async function upsertAdsBilling(billingData: Omit<AdsBillingRecord, 'id'>
     console.error('Error in upsertAdsBilling:', error);
     const err = error as Error;
     throw new Error(err.message || 'Failed to import ads billing data');
+  }
+}
+
+// ─── LEAD & LICENSE KEY ACTIONS ──────────────────────────────────
+
+export async function saveLeadAndSendKey(
+  orderId: string,
+  name: string,
+  email: string,
+  selectedProduct?: string
+) {
+  try {
+    const orderIdClean = orderId.trim();
+    const nameClean = name.trim();
+    const emailClean = email.trim();
+
+    // 1. Search for order in database
+    const { data: order, error: orderError } = await supabase
+      .from('shopee_orders')
+      .select('*')
+      .eq('order_id', orderIdClean)
+      .maybeSingle();
+
+    let matchedProductName = selectedProduct || '';
+    let isOrderFound = false;
+
+    if (order && !orderError) {
+      matchedProductName = order.product_name;
+      isOrderFound = true;
+    }
+
+    // 2. Try to find a matching key
+    let licenseKeyText = '';
+    let statusVal = 'pending_verification';
+
+    if (isOrderFound) {
+      statusVal = 'pending_key'; // default if no key is in stock
+
+      const { data: availableKeys } = await supabase
+        .from('license_keys')
+        .select('*')
+        .eq('is_used', false);
+
+      const keysList = availableKeys || [];
+      const matchedKey = keysList.find(k => 
+        matchedProductName.toLowerCase().includes(k.product_name.toLowerCase())
+      );
+
+      if (matchedKey) {
+        licenseKeyText = matchedKey.key_code;
+        statusVal = 'sent';
+
+        // Mark key as used
+        await supabase
+          .from('license_keys')
+          .update({
+            is_used: true,
+            order_id: orderIdClean,
+            used_at: new Date().toISOString()
+          })
+          .eq('id', matchedKey.id);
+      }
+    } else {
+      statusVal = 'pending_verification';
+    }
+
+    // 3. Save lead to database
+    const { data: newLead, error: leadError } = await supabase
+      .from('leads')
+      .insert([{
+        order_id: orderIdClean,
+        name: nameClean,
+        email: emailClean,
+        product_name: matchedProductName,
+        license_key: licenseKeyText || null,
+        status: statusVal
+      }])
+      .select()
+      .single();
+
+    if (leadError) throw leadError;
+
+    // 4. Send email if status is 'sent'
+    if (statusVal === 'sent' && licenseKeyText) {
+      const hostHeaders = await headers();
+      const host = hostHeaders.get('host') || 'localhost:3000';
+      const protocol = host.includes('localhost') ? 'http' : 'https';
+      const baseUrl = `${protocol}://${host}`;
+
+      await sendActivationEmail({
+        email: emailClean,
+        name: nameClean,
+        orderId: orderIdClean,
+        productName: matchedProductName,
+        licenseKey: licenseKeyText,
+        leadId: newLead.id,
+        baseUrl
+      });
+    } else if (statusVal === 'pending_key') {
+      await sendAdminAlertEmail(matchedProductName, orderIdClean);
+    }
+
+    return { success: true, status: statusVal, lead: newLead };
+  } catch (error) {
+    console.error('Error in saveLeadAndSendKey:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to save lead and deliver key');
+  }
+}
+
+async function sendActivationEmail(params: {
+  email: string;
+  name: string;
+  orderId: string;
+  productName: string;
+  licenseKey: string;
+  leadId: string;
+  baseUrl: string;
+}) {
+  const nodemailer = require('nodemailer');
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.hostinger.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'pedido@supersoftware.info',
+      pass: 'Batata2025$'
+    }
+  });
+
+  const mailOptions = {
+    from: '"SuperSoftware - Entrega de Licenças" <pedido@supersoftware.info>',
+    to: params.email,
+    subject: `Sua Chave de Ativação - Pedido #${params.orderId}`,
+    headers: {
+      'List-Unsubscribe': `<mailto:unsubscribe@supersoftware.info>, <${params.baseUrl}/descadastro>`
+    },
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1a202c;">
+        <h2 style="color: #4f46e5; margin-bottom: 20px;">Olá, ${params.name}!</h2>
+        <p>Sua chave de ativação foi gerada com sucesso para o seu pedido da Shopee.</p>
+        
+        <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 15px; margin: 20px 0; text-align: center;">
+          <p style="margin: 0; font-size: 14px; color: #4a5568; font-weight: bold; text-transform: uppercase;">Produto</p>
+          <p style="margin: 5px 0 15px 0; font-size: 18px; font-weight: bold; color: #2d3748;">${params.productName}</p>
+          
+          <p style="margin: 0; font-size: 14px; color: #4a5568; font-weight: bold; text-transform: uppercase;">Chave de Ativação</p>
+          <p style="margin: 5px 0 0 0; font-size: 20px; font-family: monospace; font-weight: bold; color: #e53e3e; letter-spacing: 1px;">${params.licenseKey}</p>
+        </div>
+
+        <h3 style="color: #2d3748; margin-top: 25px;">Instruções de Instalação:</h3>
+        <p>Para ativar seu software:</p>
+        <ol>
+          <li>Abra o aplicativo correspondente (Word, Excel ou vá em Configurações do Windows).</li>
+          <li>Acesse a seção de <strong>Conta</strong> ou <strong>Ativação</strong>.</li>
+          <li>Insira a chave de 25 caracteres exibida acima.</li>
+        </ol>
+
+        <div style="margin: 25px 0; border: 2px solid #feebc8; background-color: #fffaf0; border-radius: 6px; padding: 15px;">
+          <p style="margin: 0; font-weight: bold; color: #c05621;">📩 ATENÇÃO - IMPORTANTE:</p>
+          <p style="margin: 5px 0 0 0; font-size: 14px; color: #744210;">
+            Para garantir o recebimento de futuras chaves e ofertas na sua caixa de entrada, 
+            <strong>adicione o e-mail <a href="mailto:pedido@supersoftware.info">pedido@supersoftware.info</a> aos seus contatos</strong> 
+            ou marque este e-mail como "Não é spam".
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px;">
+          <p style="font-size: 14px; margin-bottom: 15px; color: #4a5568;">Por favor, confirme que recebeu sua chave clicando abaixo:</p>
+          <a href="${params.baseUrl}/confirmar-recebimento?id=${params.leadId}" style="display: inline-block; padding: 10px 20px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Confirmar Recebimento da Chave
+          </a>
+          <p style="font-size: 12px; color: #718096; margin-top: 15px;">
+            Ou responda diretamente a este e-mail escrevendo <strong>"Recebido"</strong>.
+          </p>
+        </div>
+
+        <p style="font-size: 12px; color: #a0aec0; margin-top: 40px; text-align: center;">
+          SuperSoftware - Licenciamento Oficial Microsoft<br>
+          <a href="mailto:pedido@supersoftware.info" style="color: #4f46e5;">pedido@supersoftware.info</a> | <a href="https://www.supersoftware.info" style="color: #4f46e5;">www.supersoftware.info</a>
+        </p>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+async function sendAdminAlertEmail(productName: string, orderId: string) {
+  const nodemailer = require('nodemailer');
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.hostinger.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'pedido@supersoftware.info',
+      pass: 'Batata2025$'
+    }
+  });
+
+  const mailOptions = {
+    from: '"Alerta de Estoque - SuperSoftware" <pedido@supersoftware.info>',
+    to: 'pedido@supersoftware.info',
+    subject: `⚠️ ESTOQUE ESGOTADO - Produto: ${productName}`,
+    text: `Olá Administrador,\n\nO cliente do pedido #${orderId} tentou resgatar uma chave para o produto "${productName}", mas o estoque de chaves está esgotado.\n\nPor favor, insira novas chaves no painel administrativo e aprove o lead correspondente para disparar o envio.\n\nAtenciosamente,\nSistema SuperSoftware`
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+export async function approveLead(leadId: string) {
+  try {
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
+
+    if (leadError || !lead) throw new Error('Lead não localizado');
+
+    const { data: availableKeys } = await supabase
+      .from('license_keys')
+      .select('*')
+      .eq('is_used', false);
+
+    const keysList = availableKeys || [];
+    const matchedKey = keysList.find(k => 
+      lead.product_name.toLowerCase().includes(k.product_name.toLowerCase())
+    );
+
+    if (!matchedKey) {
+      throw new Error(`Nenhuma chave disponível para o produto "${lead.product_name}".`);
+    }
+
+    await supabase
+      .from('license_keys')
+      .update({
+        is_used: true,
+        order_id: lead.order_id,
+        used_at: new Date().toISOString()
+      })
+      .eq('id', matchedKey.id);
+
+    const { data: updatedLead } = await supabase
+      .from('leads')
+      .update({
+        license_key: matchedKey.key_code,
+        status: 'sent'
+      })
+      .eq('id', leadId)
+      .select()
+      .single();
+
+    const hostHeaders = await headers();
+    const host = hostHeaders.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+
+    await sendActivationEmail({
+      email: lead.email,
+      name: lead.name,
+      orderId: lead.order_id,
+      productName: lead.product_name,
+      licenseKey: matchedKey.key_code,
+      leadId: lead.id,
+      baseUrl
+    });
+
+    return { success: true, lead: updatedLead };
+  } catch (error) {
+    console.error('Error in approveLead:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to approve lead');
+  }
+}
+
+export async function addLicenseKeys(productName: string, keysText: string) {
+  try {
+    const keys = keysText
+      .split('\n')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+
+    if (keys.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const insertData = keys.map(k => ({
+      product_name: productName.trim(),
+      key_code: k,
+      is_used: false
+    }));
+
+    const { data, error } = await supabase
+      .from('license_keys')
+      .insert(insertData)
+      .select();
+
+    if (error) throw error;
+    return { success: true, count: keys.length };
+  } catch (error) {
+    console.error('Error in addLicenseKeys:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to add license keys');
+  }
+}
+
+export async function deleteLead(id: string) {
+  try {
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error in deleteLead:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to delete lead');
+  }
+}
+
+export async function deleteLicenseKey(id: string) {
+  try {
+    const { error } = await supabase.from('license_keys').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error in deleteLicenseKey:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to delete license key');
+  }
+}
+
+export async function fetchLeadsAndKeys() {
+  try {
+    const [leadsRes, keysRes, ordersRes] = await Promise.all([
+      supabase.from('leads').select('*').order('created_at', { ascending: false }),
+      supabase.from('license_keys').select('*').order('created_at', { ascending: false }),
+      supabase.from('shopee_orders').select('order_id')
+    ]);
+
+    if (leadsRes.error) {
+      // If table doesn't exist yet, return empty
+      if (leadsRes.error.message.includes('relation "public.leads" does not exist')) {
+        return { leads: [], keys: [], importedOrderIds: [] };
+      }
+      throw leadsRes.error;
+    }
+    if (keysRes.error) throw keysRes.error;
+
+    const importedOrderIds = new Set((ordersRes.data || []).map(o => o.order_id));
+
+    return {
+      leads: leadsRes.data || [],
+      keys: keysRes.data || [],
+      importedOrderIds: Array.from(importedOrderIds)
+    };
+  } catch (error) {
+    console.error('Error in fetchLeadsAndKeys:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to fetch leads and keys');
+  }
+}
+
+export async function confirmReceiptDirect(leadId: string) {
+  try {
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchError || !lead) throw new Error('Lead não localizado');
+
+    const { data, error } = await supabase
+      .from('leads')
+      .update({ status: 'recebido' })
+      .eq('id', leadId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { success: true, lead: data };
+  } catch (error) {
+    console.error('Error in confirmReceiptDirect:', error);
+    const err = error as Error;
+    throw new Error(err.message || 'Failed to confirm receipt');
+  }
+}
+
+async function getBodyText(client: any, uid: number): Promise<string> {
+  try {
+    const downloadStream = await client.download(uid, '1');
+    if (downloadStream && downloadStream.content) {
+      const chunks = [];
+      for await (const chunk of downloadStream.content) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks).toString('utf8');
+    }
+  } catch (e) {
+    // try fallback
+  }
+  return '';
+}
+
+export async function checkEmailReplies() {
+  const client = new ImapFlow({
+    host: 'imap.hostinger.com',
+    port: 993,
+    secure: true,
+    auth: {
+      user: 'pedido@supersoftware.info',
+      pass: 'Batata2025$'
+    },
+    logger: false
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      const messages = await client.search({ seen: false });
+      let updatedCount = 0;
+
+      if (messages && messages.length > 0) {
+        for (const uid of messages) {
+          const message = await client.fetchOne(uid, { envelope: true });
+          if (!message) continue;
+
+          const subject = message.envelope?.subject || '';
+          const bodyText = await getBodyText(client, uid);
+          
+          const lowerBody = bodyText.toLowerCase();
+          const lowerSubject = subject.toLowerCase();
+          const hasConfirmationWord = 
+            lowerBody.includes('recebido') || 
+            lowerBody.includes('recebi') || 
+            lowerBody.includes('funcionou') || 
+            lowerBody.includes('ok') ||
+            lowerSubject.includes('recebido');
+
+          if (hasConfirmationWord) {
+            const orderIdMatch = subject.match(/Pedido\s+#?([A-Za-z0-9\-_]+)/i) || bodyText.match(/Pedido\s+#?([A-Za-z0-9\-_]+)/i);
+            if (orderIdMatch) {
+              const orderId = orderIdMatch[1].trim();
+              const { data: lead } = await supabase
+                .from('leads')
+                .select('*')
+                .eq('order_id', orderId)
+                .maybeSingle();
+
+              if (lead && lead.status !== 'recebido') {
+                await supabase
+                  .from('leads')
+                  .update({ status: 'recebido' })
+                  .eq('id', lead.id);
+                
+                await client.messageFlagsAdd({ uid }, ['\\Seen']);
+                updatedCount++;
+              }
+            }
+          }
+        }
+      }
+      return { success: true, updatedCount };
+    } finally {
+      lock.release();
+    }
+  } catch (error) {
+    console.error('IMAP check error:', error);
+    throw error;
+  } finally {
+    await client.logout();
   }
 }
 

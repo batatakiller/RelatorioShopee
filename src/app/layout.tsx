@@ -1,18 +1,29 @@
-import type { Metadata } from 'next';
+"use client";
 import './globals.css';
 import Link from 'next/link';
-import { LayoutDashboard, Upload, Settings } from 'lucide-react';
-
-export const metadata: Metadata = {
-  title: 'Shopee Sales Dashboard',
-  description: 'Track your Shopee sales, ads cost, and calculate real profits.',
-};
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Upload, Settings, Mail } from 'lucide-react';
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isPublicPage = pathname?.startsWith('/resgatar') || pathname?.startsWith('/confirmar-recebimento');
+
+  if (isPublicPage) {
+    return (
+      <html lang="pt-BR">
+        <body>
+          <main style={{ minHeight: '100vh', backgroundColor: 'var(--background)' }}>
+            {children}
+          </main>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="pt-BR">
       <body>
@@ -30,6 +41,10 @@ export default function RootLayout({
               <Link href="/import" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
                 <Upload size={20} />
                 Importar Dados
+              </Link>
+              <Link href="/leads" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
+                <Mail size={20} />
+                Gerenciar Leads
               </Link>
               <Link href="/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
                 <Settings size={20} />
