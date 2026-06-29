@@ -20,6 +20,50 @@ export default function Dashboard() {
   const [selectedValueRange, setSelectedValueRange] = useState<string>('all');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
 
+  const [activeFilter, setActiveFilter] = useState<'today' | 'week' | 'month' | 'all' | null>(null);
+
+  const setQuickFilter = (type: 'today' | 'week' | 'month' | 'all') => {
+    setActiveFilter(type);
+    const today = new Date();
+    
+    if (type === 'today') {
+      const todayStr = today.toISOString().split('T')[0];
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (type === 'week') {
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(today.setDate(diff));
+      const mondayStr = monday.toISOString().split('T')[0];
+      
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const sundayStr = sunday.toISOString().split('T')[0];
+      
+      setStartDate(mondayStr);
+      setEndDate(sundayStr);
+    } else if (type === 'month') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const firstDayStr = firstDay.toISOString().split('T')[0];
+      
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      const lastDayStr = lastDay.toISOString().split('T')[0];
+      
+      setStartDate(firstDayStr);
+      setEndDate(lastDayStr);
+    } else if (type === 'all') {
+      if (orders.length > 0) {
+        const dates = orders.map(o => o.order_date.split('T')[0]);
+        dates.sort();
+        setStartDate(dates[0]);
+        setEndDate(dates[dates.length - 1]);
+      } else {
+        setStartDate('');
+        setEndDate('');
+      }
+    }
+  };
+
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -102,6 +146,7 @@ export default function Dashboard() {
         dates.sort();
         setStartDate(dates[0]);
         setEndDate(dates[dates.length - 1]);
+        setActiveFilter('all');
       }
     } catch (error) {
       console.error(error);
@@ -250,12 +295,78 @@ export default function Dashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Resumo Geral</h2>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Quick Search Date Filters */}
+          <div style={{ display: 'flex', backgroundColor: '#1e2130', borderRadius: '8px', border: '1px solid #2d3748', overflow: 'hidden' }}>
+            <button 
+              onClick={() => setQuickFilter('today')} 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8125rem',
+                color: activeFilter === 'today' ? 'white' : 'var(--text-muted)',
+                backgroundColor: activeFilter === 'today' ? 'var(--primary)' : 'transparent',
+                transition: 'all 0.2s',
+                fontWeight: activeFilter === 'today' ? '600' : 'normal',
+                cursor: 'pointer'
+              }}
+            >
+              Hoje
+            </button>
+            <button 
+              onClick={() => setQuickFilter('week')} 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8125rem',
+                color: activeFilter === 'week' ? 'white' : 'var(--text-muted)',
+                backgroundColor: activeFilter === 'week' ? 'var(--primary)' : 'transparent',
+                borderLeft: '1px solid #2d3748',
+                transition: 'all 0.2s',
+                fontWeight: activeFilter === 'week' ? '600' : 'normal',
+                cursor: 'pointer'
+              }}
+            >
+              Semana
+            </button>
+            <button 
+              onClick={() => setQuickFilter('month')} 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8125rem',
+                color: activeFilter === 'month' ? 'white' : 'var(--text-muted)',
+                backgroundColor: activeFilter === 'month' ? 'var(--primary)' : 'transparent',
+                borderLeft: '1px solid #2d3748',
+                transition: 'all 0.2s',
+                fontWeight: activeFilter === 'month' ? '600' : 'normal',
+                cursor: 'pointer'
+              }}
+            >
+              Mês
+            </button>
+            <button 
+              onClick={() => setQuickFilter('all')} 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8125rem',
+                color: activeFilter === 'all' ? 'white' : 'var(--text-muted)',
+                backgroundColor: activeFilter === 'all' ? 'var(--primary)' : 'transparent',
+                borderLeft: '1px solid #2d3748',
+                transition: 'all 0.2s',
+                fontWeight: activeFilter === 'all' ? '600' : 'normal',
+                cursor: 'pointer'
+              }}
+            >
+              Tudo
+            </button>
+          </div>
+
           {/* Calendar Inputs for Start Date and End Date */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#1e2130', padding: '0.25rem 0.75rem', borderRadius: '8px', border: '1px solid #2d3748' }}>
             <input 
               type="date" 
               value={startDate} 
-              onChange={(e) => setStartDate(e.target.value)} 
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setActiveFilter(null);
+              }} 
               style={{ 
                 backgroundColor: 'transparent', 
                 color: 'var(--text)', 
@@ -269,7 +380,10 @@ export default function Dashboard() {
             <input 
               type="date" 
               value={endDate} 
-              onChange={(e) => setEndDate(e.target.value)} 
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setActiveFilter(null);
+              }} 
               style={{ 
                 backgroundColor: 'transparent', 
                 color: 'var(--text)', 
