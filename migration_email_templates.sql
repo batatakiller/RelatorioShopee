@@ -58,7 +58,7 @@ INSERT INTO public.email_templates (product_key, name, template_html) VALUES
         </p>
         <div style="background-color: #f7fafc; border: 1px dashed #cbd5e0; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #4a5568;">
           <strong>Após baixar:</strong><br>
-          Dê um duplo clique em <strong>\'office2024.exe\'</strong> para iniciar a instalação.<br>
+          Dê um duplo clique em <strong>''office2024.exe''</strong> para iniciar a instalação.<br>
           Uma janela de instalação será aberta. (Isso pode levar alguns minutos dependendo da sua internet).<br>
           Ao finalizar, clique em Fechar.
         </div>
