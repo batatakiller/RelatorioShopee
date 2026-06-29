@@ -31,17 +31,13 @@ export default function Dashboard() {
       setStartDate(todayStr);
       setEndDate(todayStr);
     } else if (type === 'week') {
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(today.setDate(diff));
-      const mondayStr = monday.toISOString().split('T')[0];
+      const start = new Date();
+      start.setDate(today.getDate() - 6);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = today.toISOString().split('T')[0];
       
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const sundayStr = sunday.toISOString().split('T')[0];
-      
-      setStartDate(mondayStr);
-      setEndDate(sundayStr);
+      setStartDate(startStr);
+      setEndDate(endStr);
     } else if (type === 'month') {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
       const firstDayStr = firstDay.toISOString().split('T')[0];
