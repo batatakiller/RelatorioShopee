@@ -239,21 +239,6 @@ export default function ResgatarPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#9ca3af', marginBottom: '0.5rem' }}>
-              Seu Nome Completo
-            </label>
-            <input 
-              type="text" 
-              placeholder="Digite seu nome"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={loading}
-              required
-              style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#9ca3af', marginBottom: '0.5rem' }}>
               Seu E-mail para Recebimento
             </label>
             <input 
@@ -262,6 +247,21 @@ export default function ResgatarPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={handleEmailBlur}
+              disabled={loading}
+              required
+              style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#9ca3af', marginBottom: '0.5rem' }}>
+              Seu Nome Completo
+            </label>
+            <input 
+              type="text" 
+              placeholder="Digite seu nome"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               disabled={loading}
               required
               style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
