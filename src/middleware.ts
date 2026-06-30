@@ -7,10 +7,10 @@ export function middleware(request: NextRequest) {
 
   // Check if user is accessing via the subdomain resgatar.supersoftware.info
   if (host === 'resgatar.supersoftware.info') {
-    // If they access the root '/', rewrite it internally to '/resgatar'
+    // If they access the root '/', redirect them to '/resgatar'
     if (url.pathname === '/') {
       url.pathname = '/resgatar';
-      return NextResponse.rewrite(url);
+      return NextResponse.redirect(url);
     }
   }
 
