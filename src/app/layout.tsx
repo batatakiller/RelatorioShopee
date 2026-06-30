@@ -32,9 +32,9 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
+        <div className="dashboard-container">
           {/* Sidebar */}
-          <aside style={{ width: '250px', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', padding: '2rem 1rem' }}>
+          <aside className="dashboard-aside">
             <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '2rem', paddingLeft: '1rem' }}>
               <span style={{ color: 'var(--primary)' }}>Shopee</span> Dashboard
             </h1>
@@ -65,7 +65,7 @@ export default async function RootLayout({
           </aside>
           
           {/* Main Content */}
-          <main style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+          <main className="dashboard-main">
             {children}
           </main>
         </div>

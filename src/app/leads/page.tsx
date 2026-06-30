@@ -516,7 +516,7 @@ export default function LeadsDashboard() {
         </div>
       ) : (
         // KEYS TAB
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', alignItems: 'start' }}>
+        <div className="responsive-editor-grid">
           {/* Left Column: Form and Inventory Counts */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             
@@ -674,7 +674,7 @@ export default function LeadsDashboard() {
       )}
 
       {activeTab === 'templates' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', alignItems: 'start' }}>
+        <div className="responsive-editor-grid">
           {/* Left: Templates list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="card">
@@ -728,7 +728,7 @@ export default function LeadsDashboard() {
             
             <form onSubmit={handleSaveTemplate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
                     Nome do Template (Ex: Windows 11 Pro)

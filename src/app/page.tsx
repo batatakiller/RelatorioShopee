@@ -825,7 +825,7 @@ export default function Dashboard() {
               {/* Summary Stats */}
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
                 gap: '1rem', 
                 padding: '1rem', 
                 backgroundColor: 'rgba(255, 255, 255, 0.02)', 
@@ -859,7 +859,7 @@ export default function Dashboard() {
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.25rem' }}>
                   Registrar Novo Pagamento / Abatimento
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Valor (R$)</label>
                     <input 
