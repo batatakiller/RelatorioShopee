@@ -446,14 +446,22 @@ export async function saveLeadAndSendKey(
       .eq('order_id', orderIdClean)
       .maybeSingle();
 
+    let isUpdatingPending = false;
+
     if (existingLead) {
-      return { 
-        success: true, 
-        status: existingLead.status, 
-        lead: existingLead,
-        isDuplicate: true,
-        message: `Este pedido já foi resgatado anteriormente para o e-mail: ${existingLead.email}`
-      };
+      // If the lead exists but was pending verification and now the product is chosen,
+      // allow updating the product name and dispatching the key.
+      if (existingLead.status === 'pending_verification' && selectedProduct) {
+        isUpdatingPending = true;
+      } else {
+        return { 
+          success: true, 
+          status: existingLead.status, 
+          lead: existingLead,
+          isDuplicate: true,
+          message: `Este pedido já foi resgatado anteriormente para o e-mail: ${existingLead.email}`
+        };
+      }
     }
 
     // 1. Search for order in database
@@ -475,7 +483,8 @@ export async function saveLeadAndSendKey(
     let licenseKeyText = '';
     let statusVal = 'pending_verification';
 
-    if (isOrderFound) {
+    // If updating a pending lead or if the order was found, we want to attempt key dispatch
+    if (isOrderFound || isUpdatingPending) {
       statusVal = 'pending_key'; // default if no key is in stock
 
       const { data: availableKeys } = await supabase
@@ -494,21 +503,39 @@ export async function saveLeadAndSendKey(
       statusVal = 'pending_verification';
     }
 
-    // 3. Save lead to database
-    const { data: newLead, error: leadError } = await supabase
-      .from('leads')
-      .insert([{
-        order_id: orderIdClean,
-        name: nameClean,
-        email: emailClean,
-        product_name: matchedProductName,
-        license_key: licenseKeyText || null,
-        status: statusVal
-      }])
-      .select()
-      .single();
+    // 3. Save or update lead in database
+    let newLead;
+    if (isUpdatingPending && existingLead) {
+      const { data: updatedLead, error: leadError } = await supabase
+        .from('leads')
+        .update({
+          product_name: matchedProductName,
+          license_key: licenseKeyText || null,
+          status: statusVal
+        })
+        .eq('id', existingLead.id)
+        .select()
+        .single();
 
-    if (leadError) throw leadError;
+      if (leadError) throw leadError;
+      newLead = updatedLead;
+    } else {
+      const { data: insertedLead, error: leadError } = await supabase
+        .from('leads')
+        .insert([{
+          order_id: orderIdClean,
+          name: nameClean,
+          email: emailClean,
+          product_name: matchedProductName,
+          license_key: licenseKeyText || null,
+          status: statusVal
+        }])
+        .select()
+        .single();
+
+      if (leadError) throw leadError;
+      newLead = insertedLead;
+    }
 
     // 4. Send email if status is 'sent'
     if (statusVal === 'sent' && licenseKeyText) {
