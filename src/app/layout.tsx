@@ -14,6 +14,7 @@ export default async function RootLayout({
   const isPublicPage = pathname.startsWith('/resgatar') || 
                        pathname.startsWith('/confirmar-recebimento') || 
                        pathname.startsWith('/licenca') || 
+                       pathname.startsWith('/descadastro') || 
                        host === 'resgatar.supersoftware.info';
 
   if (isPublicPage) {

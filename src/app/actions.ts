@@ -788,6 +788,10 @@ async function sendActivationEmail(params: {
           SuperSoftware - Licenciamento Oficial Microsoft<br>
           <a href="mailto:pedido@supersoftware.info" style="color: #4f46e5;">pedido@supersoftware.info</a> | <a href="https://www.supersoftware.info" style="color: #4f46e5;">www.supersoftware.info</a>
         </p>
+        <p style="font-size: 11px; color: #a0aec0; margin-top: 15px; text-align: center; border-top: 1px dashed #edf2f7; padding-top: 15px;">
+          Este é um e-mail de entrega de licença solicitado por você.<br>
+          Caso não queira mais receber nossos informativos e atualizações de ofertas, <a href="${params.baseUrl}/descadastro?email=${encodeURIComponent(params.email)}" style="color: #4f46e5; text-decoration: underline;">clique aqui para se descadastrar</a>.
+        </p>
       </div>
     `
   };
