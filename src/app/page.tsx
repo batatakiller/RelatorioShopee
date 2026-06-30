@@ -56,7 +56,7 @@ export default function Dashboard() {
       setEndDate(lastDayStr);
     } else if (type === 'all') {
       if (orders.length > 0) {
-        const dates = orders.map(o => o.order_date.split('T')[0]);
+        const dates = orders.map(o => getLocalDateString(new Date(o.order_date)));
         dates.sort();
         setStartDate(dates[0]);
         setEndDate(dates[dates.length - 1]);
@@ -145,7 +145,7 @@ export default function Dashboard() {
 
       // Set default date range based on order dates
       if (calcOrders.length > 0) {
-        const dates = calcOrders.map(o => o.order_date.split('T')[0]);
+        const dates = calcOrders.map(o => getLocalDateString(new Date(o.order_date)));
         dates.sort();
         setStartDate(dates[0]);
         setEndDate(dates[dates.length - 1]);
@@ -190,7 +190,7 @@ export default function Dashboard() {
     const dailyData: Record<string, { date: string, revenue: number, profit: number, ads: number }> = {};
 
     const filtered = orders.filter(o => {
-      const orderDateStr = o.order_date.split('T')[0];
+      const orderDateStr = getLocalDateString(new Date(o.order_date));
 
       // Date range filter
       if (startDate && orderDateStr < startDate) return false;
