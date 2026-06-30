@@ -353,71 +353,26 @@ export async function upsertAdsBilling(billingData: Omit<AdsBillingRecord, 'id'>
     const minDate = dates.reduce((min, d) => d < min ? d : min, dates[0]);
     const maxDate = dates.reduce((max, d) => d > max ? d : max, dates[0]);
 
-    // Fetch existing records in this date range to prevent duplicates
-    const { data: existingRecords, error: fetchError } = await supabase
+    // Delete existing records in this date range to prevent duplicates and double counting
+    const { error: deleteError } = await supabase
       .from('shopee_ads_billing')
-      .select('transaction_date, description, amount, observation')
+      .delete()
       .gte('transaction_date', minDate)
       .lte('transaction_date', maxDate);
 
-    if (fetchError) throw fetchError;
+    if (deleteError) throw deleteError;
 
-    const existingKeys = new Set(
-      (existingRecords || []).map(r => 
-        `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`
-      )
-    );
+    // Insert all records from the CSV file
+    const { error: insertError } = await supabase
+      .from('shopee_ads_billing')
+      .insert(billingData);
 
-    // Deduplicate incoming billingData internally (defensive programming)
-    const uniqueIncoming = [];
-    const seenIncomingKeys = new Set();
-    for (const r of billingData) {
-      const key = `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`;
-      if (!seenIncomingKeys.has(key)) {
-        seenIncomingKeys.add(key);
-        uniqueIncoming.push(r);
-      }
-    }
-
-    // Filter out rows that already exist in the database
-    const newRecords = uniqueIncoming.filter(r => {
-      const key = `${r.transaction_date}_${r.description}_${r.amount}_${r.observation || '-'}`;
-      return !existingKeys.has(key);
-    });
-
-    const skippedCount = billingData.length - newRecords.length;
-
-    if (newRecords.length > 0) {
-      // Try to upsert using the new constraint
-      const { error: insertError } = await supabase
-        .from('shopee_ads_billing')
-        .upsert(newRecords, {
-          onConflict: 'transaction_date,description,amount,observation',
-          ignoreDuplicates: true
-        });
-
-      // If the migration hasn't been run yet, the new constraint doesn't exist,
-      // and upsert will fail with Postgres code '42P10'. Fall back to old constraint.
-      if (insertError) {
-        if (insertError.code === '42P10') {
-          console.warn('New unique constraint not found in database. Falling back to old constraint upsert.');
-          const { error: fallbackError } = await supabase
-            .from('shopee_ads_billing')
-            .upsert(newRecords, {
-              onConflict: 'sequence_number,transaction_date,amount',
-              ignoreDuplicates: true
-            });
-          if (fallbackError) throw fallbackError;
-        } else {
-          throw insertError;
-        }
-      }
-    }
+    if (insertError) throw insertError;
 
     return { 
       success: true, 
-      insertedCount: newRecords.length, 
-      skippedCount 
+      insertedCount: billingData.length, 
+      skippedCount: 0 
     };
   } catch (error) {
     console.error('Error in upsertAdsBilling:', error);
