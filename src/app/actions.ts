@@ -496,8 +496,9 @@ export async function saveLeadAndSendKey(
     if (statusVal === 'sent' && licenseKeyText) {
       const hostHeaders = await headers();
       const host = hostHeaders.get('host') || 'localhost:3000';
-      const protocol = host.includes('localhost') ? 'http' : 'https';
-      const baseUrl = `${protocol}://${host}`;
+      const baseUrl = host.includes('localhost')
+        ? `http://${host}`
+        : 'https://resgatar.supersoftware.info';
 
       await sendActivationEmail({
         email: emailClean,
@@ -906,8 +907,9 @@ export async function approveLead(leadId: string) {
 
     const hostHeaders = await headers();
     const host = hostHeaders.get('host') || 'localhost:3000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const baseUrl = `${protocol}://${host}`;
+    const baseUrl = host.includes('localhost')
+      ? `http://${host}`
+      : 'https://resgatar.supersoftware.info';
 
     await sendActivationEmail({
       email: lead.email,
