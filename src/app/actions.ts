@@ -483,8 +483,8 @@ export async function saveLeadAndSendKey(
     let licenseKeyText = '';
     let statusVal = 'pending_verification';
 
-    // If updating a pending lead or if the order was found, we want to attempt key dispatch
-    if (isOrderFound || isUpdatingPending) {
+    // We ONLY attempt automatic key dispatch if the order was officially found/imported
+    if (isOrderFound) {
       statusVal = 'pending_key'; // default if no key is in stock
 
       const { data: availableKeys } = await supabase
