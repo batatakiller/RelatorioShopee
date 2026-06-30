@@ -1358,3 +1358,23 @@ export async function saveEmailTemplate(
   }
 }
 
+export async function getClientNameByEmail(email: string) {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('name')
+      .eq('email', email.trim().toLowerCase())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return { success: true, name: data[0].name };
+    }
+    return { success: true, name: null };
+  } catch (error) {
+    console.error('Error in getClientNameByEmail:', error);
+    return { success: false, name: null };
+  }
+}
+

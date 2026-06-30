@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveLeadAndSendKey } from '@/app/actions';
+import { saveLeadAndSendKey, getClientNameByEmail } from '@/app/actions';
 import { Mail, CheckCircle, Clock, AlertTriangle, Key, ShoppingBag, ArrowRight } from 'lucide-react';
 
 export default function ResgatarPage() {
@@ -17,6 +17,20 @@ export default function ResgatarPage() {
     productName: string;
     keySent?: string | null;
   } | null>(null);
+
+  const handleEmailBlur = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@') || !trimmedEmail.includes('.')) return;
+
+    try {
+      const res = await getClientNameByEmail(trimmedEmail);
+      if (res.success && res.name) {
+        setName(res.name);
+      }
+    } catch (err) {
+      console.error('Error fetching client name:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,6 +261,7 @@ export default function ResgatarPage() {
               placeholder="Ex: seuemail@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={handleEmailBlur}
               disabled={loading}
               required
               style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
