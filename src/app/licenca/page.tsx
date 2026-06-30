@@ -91,7 +91,7 @@ function LicencaContent() {
               Precisa de ajuda com o seu resgate? Entre em contato com o nosso suporte técnico:
             </p>
             <a 
-              href="https://wa.me/5511935856950" 
+              href={`https://wa.me/5511935856950?text=${encodeURIComponent(`Olá! Estou com dificuldades para acessar a minha licença na página de resgate seguro (ID do Acesso: ${leadId || 'Não Identificado'}).`)}`}
               target="_blank" 
               rel="noopener noreferrer" 
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', backgroundColor: '#10b981', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.875rem' }}
@@ -144,7 +144,7 @@ function LicencaContent() {
                 Status do Recebimento
               </span>
               <span style={{ fontSize: '0.825rem', padding: '0.25rem 0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderRadius: '4px', fontWeight: 'bold' }}>
-                Confirmado Automaticamente
+                Confirmado
               </span>
             </div>
           </div>
@@ -187,7 +187,7 @@ function LicencaContent() {
 
           {/* Alert Info */}
           <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px', padding: '1rem', fontSize: '0.85rem', color: '#a7f3d0', lineHeight: '1.5', marginBottom: '1rem' }}>
-            🎉 <strong>Recebimento Confirmado!</strong> Agradecemos sua visita. O status do seu pedido foi atualizado automaticamente como entregue e ativado em nosso painel administrativo.
+            🎉 <strong>Recebimento Confirmado!</strong> Agradecemos sua visita.
           </div>
 
         </div>
@@ -209,7 +209,7 @@ function LicencaContent() {
         {/* Sticky support button */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
           <a 
-            href="https://wa.me/5511935856950" 
+            href={`https://wa.me/5511935856950?text=${encodeURIComponent(`Olá! Preciso de ajuda com a ativação da minha licença (${lead.productName}) para o pedido Shopee #${lead.orderId}.`)}`}
             target="_blank" 
             rel="noopener noreferrer" 
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.875rem', textDecoration: 'none', transition: 'color 0.2s', padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #2d3748', backgroundColor: '#1e2130' }}
