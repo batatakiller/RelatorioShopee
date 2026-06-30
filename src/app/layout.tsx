@@ -1,16 +1,19 @@
-"use client";
 import './globals.css';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { headers } from 'next/headers';
 import { LayoutDashboard, Upload, Settings, Mail } from 'lucide-react';
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isPublicPage = pathname?.startsWith('/resgatar') || pathname?.startsWith('/confirmar-recebimento');
+  const headersList = await headers();
+  const pathname = headersList.get('x-pathname') || '';
+  const host = headersList.get('host') || '';
+  const isPublicPage = pathname.startsWith('/resgatar') || 
+                       pathname.startsWith('/confirmar-recebimento') || 
+                       host === 'resgatar.supersoftware.info';
 
   if (isPublicPage) {
     return (

@@ -4,17 +4,32 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const host = request.headers.get('host') || '';
+  let pathname = url.pathname;
 
-  // Check if user is accessing via the subdomain resgatar.supersoftware.info
+  // If they access resgatar.supersoftware.info/ at root, rewrite internally to /resgatar
   if (host === 'resgatar.supersoftware.info') {
-    // If they access the root '/', redirect them to '/resgatar'
     if (url.pathname === '/') {
       url.pathname = '/resgatar';
-      return NextResponse.redirect(url);
+      pathname = '/resgatar';
     }
   }
 
-  return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathname);
+
+  if (host === 'resgatar.supersoftware.info' && url.pathname === '/resgatar') {
+    return NextResponse.rewrite(url, {
+      request: {
+        headers: requestHeaders,
+      }
+    });
+  }
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    }
+  });
 }
 
 // Config to run middleware only on page routes
