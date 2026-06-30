@@ -7,6 +7,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle, Wallet, History, Plus, Trash2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
   const [ads, setAds] = useState<AdData[]>([]);
@@ -27,23 +34,23 @@ export default function Dashboard() {
     const today = new Date();
     
     if (type === 'today') {
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = getLocalDateString(today);
       setStartDate(todayStr);
       setEndDate(todayStr);
     } else if (type === 'week') {
       const start = new Date();
       start.setDate(today.getDate() - 6);
-      const startStr = start.toISOString().split('T')[0];
-      const endStr = today.toISOString().split('T')[0];
+      const startStr = getLocalDateString(start);
+      const endStr = getLocalDateString(today);
       
       setStartDate(startStr);
       setEndDate(endStr);
     } else if (type === 'month') {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      const firstDayStr = firstDay.toISOString().split('T')[0];
+      const firstDayStr = getLocalDateString(firstDay);
       
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      const lastDayStr = lastDay.toISOString().split('T')[0];
+      const lastDayStr = getLocalDateString(lastDay);
       
       setStartDate(firstDayStr);
       setEndDate(lastDayStr);
@@ -69,7 +76,7 @@ export default function Dashboard() {
 
   const openPaymentModal = () => {
     setPaymentAmount('');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(getLocalDateString(new Date()));
     setPaymentNotes('');
     setIsPaymentModalOpen(true);
   };
