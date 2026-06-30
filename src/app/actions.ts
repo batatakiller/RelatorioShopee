@@ -1395,3 +1395,21 @@ export async function getClientNameByEmail(email: string) {
   }
 }
 
+export async function unsubscribeEmail(email: string) {
+  try {
+    if (!email) return { success: false, error: 'Email invalid' };
+    const emailClean = email.trim().toLowerCase();
+    const { error } = await supabase
+      .from('leads')
+      .update({ unsubscribed: true })
+      .eq('email', emailClean);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error in unsubscribeEmail:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Error unsubscribing email' };
+  }
+}
+
+

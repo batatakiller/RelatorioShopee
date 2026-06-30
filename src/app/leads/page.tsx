@@ -37,6 +37,7 @@ interface Lead {
   license_key: string | null;
   status: 'sent' | 'pending_verification' | 'pending_key' | 'recebido';
   created_at: string;
+  unsubscribed?: boolean;
 }
 
 interface LicenseKey {
@@ -419,7 +420,22 @@ export default function LeadsDashboard() {
                         <tr key={lead.id}>
                           <td style={{ fontWeight: '600', fontSize: '0.875rem' }}>#{lead.order_id}</td>
                           <td>{lead.name}</td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{lead.email}</td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                             {lead.email}
+                             {lead.unsubscribed && (
+                               <span style={{ 
+                                 marginLeft: '0.5rem', 
+                                 fontSize: '0.7rem', 
+                                 backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                                 color: '#ef4444', 
+                                 padding: '0.1rem 0.35rem', 
+                                 borderRadius: '4px', 
+                                 fontWeight: 'bold' 
+                               }}>
+                                 Descadastrado
+                               </span>
+                             )}
+                           </td>
                           <td style={{ fontSize: '0.875rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.product_name}>
                             {lead.product_name || '-'}
                           </td>
