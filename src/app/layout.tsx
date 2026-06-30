@@ -13,6 +13,7 @@ export default async function RootLayout({
   const host = headersList.get('host') || '';
   const isPublicPage = pathname.startsWith('/resgatar') || 
                        pathname.startsWith('/confirmar-recebimento') || 
+                       pathname.startsWith('/licenca') || 
                        host === 'resgatar.supersoftware.info';
 
   if (isPublicPage) {
