@@ -172,7 +172,7 @@ export default function ImportPage() {
       // Group rows by Order ID to prevent database unique constraint errors for multi-item orders
       const groupedOrdersMap = new Map<string, Record<string, string | number>[]>();
       for (const row of rows) {
-        const orderId = String(row['ID do pedido'] || '').trim();
+        const orderId = String(row['ID do pedido'] || '').trim().toUpperCase();
         if (!orderId) continue;
         if (!groupedOrdersMap.has(orderId)) {
           groupedOrdersMap.set(orderId, []);
@@ -324,7 +324,7 @@ export default function ImportPage() {
         .map(row => {
           if (!row || row.length === 0) return null;
 
-          const orderId = String(row[orderIdCol] || '').trim();
+          const orderId = String(row[orderIdCol] || '').trim().toUpperCase();
           if (!orderId || orderId === '-') return null;
 
           let amount = 0;

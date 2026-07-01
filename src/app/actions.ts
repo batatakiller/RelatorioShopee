@@ -390,7 +390,7 @@ export async function saveLeadAndSendKey(
   selectedProduct?: string
 ) {
   try {
-    const orderIdClean = orderId.trim();
+    const orderIdClean = orderId.trim().toUpperCase();
     const nameClean = name.trim();
     const emailClean = email.trim();
 
@@ -1304,7 +1304,7 @@ export async function checkEmailReplies() {
           if (hasConfirmationWord) {
             const orderIdMatch = subject.match(/Pedido\s+#?([A-Za-z0-9\-_]+)/i) || bodyText.match(/Pedido\s+#?([A-Za-z0-9\-_]+)/i);
             if (orderIdMatch) {
-              const orderId = orderIdMatch[1].trim();
+              const orderId = orderIdMatch[1].trim().toUpperCase();
               const { data: lead } = await supabase
                 .from('leads')
                 .select('*')

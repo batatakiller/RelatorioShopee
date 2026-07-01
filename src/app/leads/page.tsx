@@ -243,7 +243,9 @@ export default function LeadsDashboard() {
 
   // Helper to check if order is imported
   const isOrderImported = (orderId: string) => {
-    return importedOrderIds.includes(orderId);
+    if (!orderId) return false;
+    const cleanId = orderId.trim().toUpperCase();
+    return importedOrderIds.some(id => String(id).trim().toUpperCase() === cleanId);
   };
 
   // Registered key counts
