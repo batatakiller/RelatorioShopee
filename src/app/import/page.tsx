@@ -183,9 +183,16 @@ export default function ImportPage() {
       const ordersData = Array.from(groupedOrdersMap.entries()).map(([orderId, orderRows]) => {
         const firstRow = orderRows[0];
         
-        // Product name: concatenate product names for all items in the order
+        // Product name: concatenate product names and variations for all items in the order
         const productNames = Array.from(
-          new Set(orderRows.map(row => String(row['Nome do Produto'] || '').trim()))
+          new Set(orderRows.map(row => {
+            const prodName = String(row['Nome do Produto'] || '').trim();
+            const varName = String(row['Nome da variação'] || '').trim();
+            if (varName && varName !== '-' && !prodName.toLowerCase().includes(varName.toLowerCase())) {
+              return `${prodName} (Variação: ${varName})`;
+            }
+            return prodName;
+          }))
         ).filter(Boolean).join(' + ');
 
         // Quantity: sum of quantities of all items in the order

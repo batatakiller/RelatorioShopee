@@ -15,17 +15,28 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 function findMatchingKey(orderProductName: string, keys: any[]): any | null {
   const prodLower = orderProductName.toLowerCase();
   
+  // Extract variation if present (e.g. "variação: 2016")
+  let matchTarget = prodLower;
+  const varMatch = prodLower.match(/varia[çc][ãa]o:\s*([^\s\)]+)/);
+  if (varMatch) {
+    matchTarget = varMatch[1].trim();
+  }
+
   // 1. Check for Office products
   if (prodLower.includes('office')) {
-    if (prodLower.includes('2024')) {
+    if (matchTarget.includes('2024') || (!varMatch && prodLower.includes('2024'))) {
       const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2024'));
       if (match) return match;
     }
-    if (prodLower.includes('2021')) {
+    if (matchTarget.includes('2021') || (!varMatch && prodLower.includes('2021'))) {
       const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2021'));
       if (match) return match;
     }
-    if (prodLower.includes('2016')) {
+    if (matchTarget.includes('2019') || (!varMatch && prodLower.includes('2019'))) {
+      const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2019'));
+      if (match) return match;
+    }
+    if (matchTarget.includes('2016') || (!varMatch && prodLower.includes('2016'))) {
       const match = keys.find(k => k.product_name.toLowerCase().includes('office') && k.product_name.toLowerCase().includes('2016'));
       if (match) return match;
     }
@@ -33,11 +44,11 @@ function findMatchingKey(orderProductName: string, keys: any[]): any | null {
 
   // 2. Check for Windows products
   if (prodLower.includes('windows')) {
-    if (prodLower.includes('11')) {
+    if (matchTarget.includes('11') || (!varMatch && prodLower.includes('11'))) {
       const match = keys.find(k => k.product_name.toLowerCase().includes('windows') && k.product_name.toLowerCase().includes('11'));
       if (match) return match;
     }
-    if (prodLower.includes('10')) {
+    if (matchTarget.includes('10') || (!varMatch && prodLower.includes('10'))) {
       const match = keys.find(k => k.product_name.toLowerCase().includes('windows') && k.product_name.toLowerCase().includes('10'));
       if (match) return match;
     }
