@@ -100,7 +100,24 @@ export async function fetchDashboardData() {
           totalRechargesPaid += record.credit_paid;
           totalFreeCredits += (record.credit_free || 0);
         } else {
-          totalRechargesPaid += record.amount;
+          // If credit_paid is null (common in CSV exports where Observation is '-'),
+          // classify based on the description text.
+          const descLower = (record.description || '').toLowerCase();
+          const isFreeCredit = 
+            descLower.includes('comissão') || 
+            descLower.includes('comissao') || 
+            descLower.includes('free') || 
+            descLower.includes('bônus') || 
+            descLower.includes('bonus') || 
+            descLower.includes('gratuito') || 
+            descLower.includes('recompensa') ||
+            descLower.includes('promo');
+
+          if (isFreeCredit) {
+            totalFreeCredits += record.amount;
+          } else {
+            totalRechargesPaid += record.amount;
+          }
         }
       }
     }
