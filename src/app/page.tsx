@@ -173,7 +173,7 @@ export default function Dashboard() {
     return Array.from(products).sort();
   }, [orders]);
 
-  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending, globalProductCost, filteredPaidRecharges, filteredFreeCredits } = useMemo(() => {
+  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending, globalProductCost, filteredPaidRecharges, filteredFreeCredits, paidRatio } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
     let tAdsCost = 0;
@@ -214,8 +214,8 @@ export default function Dashboard() {
       return true;
     });
 
+    // First pass: sum raw ads to calculate the paid ratio later
     filtered.forEach(order => {
-      // Ignore Cancelado for KPIs and Charts
       if (order.status?.toLowerCase().includes('cancelado')) {
         cancelledCount++;
         return;
@@ -233,15 +233,10 @@ export default function Dashboard() {
           totalPending += order.total_revenue;
         }
       }
-
-      const dateStr = format(parseISO(order.order_date), 'dd/MM/yyyy');
-      if (!dailyData[dateStr]) {
-        dailyData[dateStr] = { date: dateStr, revenue: 0, profit: 0, ads: 0 };
-      }
-      dailyData[dateStr].revenue += order.total_revenue;
-      dailyData[dateStr].profit += order.net_profit;
-      dailyData[dateStr].ads += order.ads_cost;
     });
+
+    // Calculate paidRatio BEFORE building chart data
+    // This is deferred until after dailyRecharges are filtered (below)
 
     // If no billing data, fall back to the old ads table filtering
     let realTotalAdsCost = tAdsCost;
@@ -282,13 +277,34 @@ export default function Dashboard() {
       fFreeCredits += dr.free;
     }
 
-    // Lucro Real = Receita - Custo de Produtos - Recargas Pagas (dinheiro do bolso)
-    // Free credits/bonuses from Shopee are NOT a cost — they don't reduce profit.
-    const tp = tr - tProductCost - fPaidRecharges;
+    // paidRatio: proportion of ads wallet that was paid from pocket
+    // e.g. R$ 500 paid + R$ 312 free = 61.55% paid
+    const totalRecharges = fPaidRecharges + fFreeCredits;
+    const ratio = totalRecharges > 0 ? fPaidRecharges / totalRecharges : 1;
+
+    // Adjusted ads cost = only the cash portion of consumed ads
+    const adjustedTotalAdsCost = realTotalAdsCost * ratio;
+
+    // Lucro Real = Receita - Custo de Produtos - Ads Consumido * Proporção Paga
+    const tp = tr - tProductCost - adjustedTotalAdsCost;
+
+    // Build chart data with adjusted ads costs
+    filtered.forEach(order => {
+      if (order.status?.toLowerCase().includes('cancelado')) return;
+      const dateStr = format(parseISO(order.order_date), 'dd/MM/yyyy');
+      if (!dailyData[dateStr]) {
+        dailyData[dateStr] = { date: dateStr, revenue: 0, profit: 0, ads: 0 };
+      }
+      const adjAdsCost = order.ads_cost * ratio;
+      const adjProfit = order.total_revenue - order.product_cost - adjAdsCost;
+      dailyData[dateStr].revenue += order.total_revenue;
+      dailyData[dateStr].profit += adjProfit;
+      dailyData[dateStr].ads += adjAdsCost;
+    });
 
     return {
       totalRevenue: tr,
-      totalAdsCost: realTotalAdsCost,
+      totalAdsCost: adjustedTotalAdsCost,
       totalProductCost: tProductCost,
       totalProfit: tp,
       totalOrders: validOrdersCount,
@@ -299,7 +315,8 @@ export default function Dashboard() {
       totalPending,
       globalProductCost: gProductCost,
       filteredPaidRecharges: fPaidRecharges,
-      filteredFreeCredits: fFreeCredits
+      filteredFreeCredits: fFreeCredits,
+      paidRatio: ratio
     };
   }, [orders, ads, adsBillingDaily, dailyRecharges, startDate, endDate, selectedProducts, selectedValueRange]);
 
@@ -766,9 +783,9 @@ export default function Dashboard() {
                     <td className="text-warning">- R$ {((order.seller_discount || 0) + (order.seller_coupon || 0)).toFixed(2)}</td>
                     <td>R$ {order.total_revenue.toFixed(2)}</td>
                     <td className="text-danger">- R$ {order.product_cost.toFixed(2)}</td>
-                    <td className="text-danger">- R$ {order.ads_cost.toFixed(2)}</td>
-                    <td className={order.net_profit >= 0 && !isCancelled && !isUnmatched ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
-                      R$ {order.net_profit.toFixed(2)}
+                    <td className="text-danger">- R$ {(order.ads_cost * paidRatio).toFixed(2)}</td>
+                    <td className={(order.total_revenue - order.product_cost - order.ads_cost * paidRatio) >= 0 && !isCancelled && !isUnmatched ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
+                      R$ {(order.total_revenue - order.product_cost - order.ads_cost * paidRatio).toFixed(2)}
                     </td>
                   </tr>
                 );
