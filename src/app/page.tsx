@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
   const [ads, setAds] = useState<AdData[]>([]);
   const [adsBillingDaily, setAdsBillingDaily] = useState<AdsBillingDaily[]>([]);
+  const [dailyRecharges, setDailyRecharges] = useState<{date: string; paid: number; free: number}[]>([]);
   const [totalRechargesPaid, setTotalRechargesPaid] = useState(0);
   const [totalFreeCredits, setTotalFreeCredits] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -133,6 +134,7 @@ export default function Dashboard() {
       setOrders(calcOrders);
       setAds(data.ads);
       setAdsBillingDaily(data.adsBillingDaily || []);
+      setDailyRecharges(data.dailyRecharges || []);
       setTotalRechargesPaid(data.totalRechargesPaid || 0);
       setTotalFreeCredits(data.totalFreeCredits || 0);
       setSupplierPayments(data.supplierPayments || []);
@@ -171,7 +173,7 @@ export default function Dashboard() {
     return Array.from(products).sort();
   }, [orders]);
 
-  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending, globalProductCost } = useMemo(() => {
+  const { totalRevenue, totalAdsCost, totalProductCost, totalProfit, totalOrders, cancelledOrders, chartData, filteredOrders, totalReceived, totalPending, globalProductCost, filteredPaidRecharges, filteredFreeCredits } = useMemo(() => {
     let tr = 0;
     let tProductCost = 0;
     let tAdsCost = 0;
@@ -270,7 +272,19 @@ export default function Dashboard() {
       realTotalAdsCost = filteredAds.reduce((sum, ad) => sum + ad.cost, 0);
     }
 
-    const tp = tr - tProductCost - realTotalAdsCost;
+    // Filter daily recharges by the dashboard date range
+    let fPaidRecharges = 0;
+    let fFreeCredits = 0;
+    for (const dr of dailyRecharges) {
+      if (startDate && dr.date < startDate) continue;
+      if (endDate && dr.date > endDate) continue;
+      fPaidRecharges += dr.paid;
+      fFreeCredits += dr.free;
+    }
+
+    // Lucro Real = Receita - Custo de Produtos - Recargas Pagas (dinheiro do bolso)
+    // Free credits/bonuses from Shopee are NOT a cost — they don't reduce profit.
+    const tp = tr - tProductCost - fPaidRecharges;
 
     return {
       totalRevenue: tr,
@@ -283,9 +297,11 @@ export default function Dashboard() {
       filteredOrders: filtered,
       totalReceived,
       totalPending,
-      globalProductCost: gProductCost
+      globalProductCost: gProductCost,
+      filteredPaidRecharges: fPaidRecharges,
+      filteredFreeCredits: fFreeCredits
     };
-  }, [orders, ads, adsBillingDaily, startDate, endDate, selectedProducts, selectedValueRange]);
+  }, [orders, ads, adsBillingDaily, dailyRecharges, startDate, endDate, selectedProducts, selectedValueRange]);
 
   // Remove availableMonths since we use calendar inputs now
 
@@ -570,16 +586,16 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {totalRechargesPaid > 0 && (
+        {filteredPaidRecharges > 0 && (
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
             <div style={{ padding: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: '12px', color: 'var(--warning)' }}>
               <Wallet size={20} />
             </div>
             <div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Total Investido (Recargas)</p>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {totalRechargesPaid.toFixed(2)}</h3>
-              {totalFreeCredits > 0 && (
-                <p style={{ color: 'var(--success)', fontSize: '0.625rem', marginTop: '0.125rem' }}>Bônus gratuito: R$ {totalFreeCredits.toFixed(2)}</p>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>R$ {filteredPaidRecharges.toFixed(2)}</h3>
+              {filteredFreeCredits > 0 && (
+                <p style={{ color: 'var(--success)', fontSize: '0.625rem', marginTop: '0.125rem' }}>Bônus gratuito: R$ {filteredFreeCredits.toFixed(2)}</p>
               )}
             </div>
           </div>

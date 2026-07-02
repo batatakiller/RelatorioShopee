@@ -79,8 +79,9 @@ export async function fetchDashboardData() {
     // supplier_payments table might not exist yet — treat as empty
     const supplierPayments = (supplierPaymentsRes && !supplierPaymentsRes.error) ? (supplierPaymentsRes.data as SupplierPayment[] || []) : [];
 
-    // Aggregate billing data by day (only deductions = negative amounts)
+    // Aggregate billing data by day
     const dailyMap = new Map<string, AdsBillingDaily>();
+    const dailyRechargesMap = new Map<string, { date: string; paid: number; free: number }>();
     let totalRechargesPaid = 0;
     let totalFreeCredits = 0;
 
@@ -95,8 +96,12 @@ export async function fetchDashboardData() {
           dailyMap.set(dateStr, { date: dateStr, total_spent: Math.abs(record.amount) });
         }
       } else {
-        // Recharge — track real money invested
+        // Recharge — track real money invested vs free credits
+        const rechargeDay = dailyRechargesMap.get(dateStr) || { date: dateStr, paid: 0, free: 0 };
+
         if (record.credit_paid !== null && record.credit_paid !== undefined) {
+          rechargeDay.paid += record.credit_paid;
+          rechargeDay.free += (record.credit_free || 0);
           totalRechargesPaid += record.credit_paid;
           totalFreeCredits += (record.credit_free || 0);
         } else {
@@ -114,11 +119,15 @@ export async function fetchDashboardData() {
             descLower.includes('promo');
 
           if (isFreeCredit) {
+            rechargeDay.free += record.amount;
             totalFreeCredits += record.amount;
           } else {
+            rechargeDay.paid += record.amount;
             totalRechargesPaid += record.amount;
           }
         }
+
+        dailyRechargesMap.set(dateStr, rechargeDay);
       }
     }
 
@@ -127,6 +136,7 @@ export async function fetchDashboardData() {
       ads: adsRes.data as AdData[] || [],
       costs: costsRes.data as ProductCost[] || [],
       adsBillingDaily: Array.from(dailyMap.values()),
+      dailyRecharges: Array.from(dailyRechargesMap.values()),
       totalRechargesPaid,
       totalFreeCredits,
       supplierPayments,
