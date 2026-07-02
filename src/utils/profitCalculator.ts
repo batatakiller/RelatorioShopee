@@ -99,25 +99,28 @@ export function calculateProfit(
       if (lowerName.includes(termLower)) {
         let isZeroCost = false;
         
-        if (isAfterZeroCostDate) {
-          const matchesZeroCostProduct = 
-            lowerName.includes('windows 10') ||
-            lowerName.includes('windows 11') ||
-            lowerName.includes('office 2021') ||
+        if (orderDateStr >= '2026-06-21') {
+          const isWindowsZeroCost = 
+            lowerName.includes('windows 10') || 
+            lowerName.includes('windows 11');
+          const isLegacyOfficeZeroCost = 
+            lowerName.includes('office 2021') || 
             lowerName.includes('office 2016');
 
-          if (matchesZeroCostProduct) {
-            const isZeroCostTerm = 
-              termLower.includes('windows 10') ||
-              termLower.includes('windows 11') ||
-              termLower.includes('office 2021') ||
-              termLower.includes('office 2016') ||
-              (termLower.includes('windows') && (lowerName.includes('windows 10') || lowerName.includes('windows 11'))) ||
-              (termLower.includes('office') && (lowerName.includes('office 2021') || lowerName.includes('office 2016')));
+          const isWindowsTerm = termLower.includes('windows');
+          const isOfficeTerm = termLower.includes('office');
 
-            if (isZeroCostTerm) {
-              isZeroCost = true;
-            }
+          if (isWindowsZeroCost && isWindowsTerm) {
+            isZeroCost = true;
+          }
+          if (isLegacyOfficeZeroCost && isOfficeTerm) {
+            isZeroCost = true;
+          }
+        }
+
+        if (orderDateStr >= '2026-06-29') {
+          if (lowerName.includes('office') && termLower.includes('office')) {
+            isZeroCost = true;
           }
         }
 
