@@ -278,9 +278,11 @@ export default function Dashboard() {
     }
 
     // paidRatio: proportion of ads wallet that was paid from pocket
+    // Uses ALL-TIME recharges (not date-filtered) because the wallet is cumulative —
+    // a recharge on 26/06 pays for clicks on 02/07.
     // e.g. R$ 500 paid + R$ 312 free = 61.55% paid
-    const totalRecharges = fPaidRecharges + fFreeCredits;
-    const ratio = totalRecharges > 0 ? fPaidRecharges / totalRecharges : 1;
+    const globalTotalRecharges = totalRechargesPaid + totalFreeCredits;
+    const ratio = globalTotalRecharges > 0 ? totalRechargesPaid / globalTotalRecharges : 1;
 
     // Adjusted ads cost = only the cash portion of consumed ads
     const adjustedTotalAdsCost = realTotalAdsCost * ratio;
@@ -318,7 +320,7 @@ export default function Dashboard() {
       filteredFreeCredits: fFreeCredits,
       paidRatio: ratio
     };
-  }, [orders, ads, adsBillingDaily, dailyRecharges, startDate, endDate, selectedProducts, selectedValueRange]);
+  }, [orders, ads, adsBillingDaily, dailyRecharges, totalRechargesPaid, totalFreeCredits, startDate, endDate, selectedProducts, selectedValueRange]);
 
   // Remove availableMonths since we use calendar inputs now
 
