@@ -1,7 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { LayoutDashboard, Upload, Settings, Mail } from 'lucide-react';
+import { LayoutDashboard, Upload, Settings, Mail, Calculator } from 'lucide-react';
 
 export default async function RootLayout({
   children,
@@ -46,6 +46,10 @@ export default async function RootLayout({
               <Link href="/import" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
                 <Upload size={20} />
                 Importar Dados
+              </Link>
+              <Link href="/calculadora" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
+                <Calculator size={20} />
+                Calculadora Margem
               </Link>
               <Link href="/leads" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', color: 'var(--text-muted)', transition: 'all 0.2s ease' }} className="nav-item">
                 <Mail size={20} />

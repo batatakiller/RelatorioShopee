@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { fetchDashboardData, addSupplierPayment, deleteSupplierPayment } from '@/app/actions';
-import { AdData, AdsBillingDaily, CalculatedOrder, calculateProfit, SupplierPayment } from '@/utils/profitCalculator';
+import { AdData, AdsBillingDaily, AdsBillingRecord, OrderAudit, CalculatedOrder, calculateProfit, SupplierPayment } from '@/utils/profitCalculator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, ShoppingBag, CheckCircle, Clock, AlertTriangle, Wallet, History, Plus, Trash2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<CalculatedOrder[]>([]);
   const [ads, setAds] = useState<AdData[]>([]);
   const [adsBillingDaily, setAdsBillingDaily] = useState<AdsBillingDaily[]>([]);
+  const [adsBillingRaw, setAdsBillingRaw] = useState<AdsBillingRecord[]>([]);
+  const [auditOrder, setAuditOrder] = useState<CalculatedOrder | null>(null);
   const [dailyRecharges, setDailyRecharges] = useState<{date: string; paid: number; free: number}[]>([]);
   const [totalRechargesPaid, setTotalRechargesPaid] = useState(0);
   const [totalFreeCredits, setTotalFreeCredits] = useState(0);
@@ -129,11 +131,12 @@ export default function Dashboard() {
         data.orders, 
         data.ads, 
         data.costs,
-        data.adsBillingDaily
+        data.adsBillingRaw || []
       );
       setOrders(calcOrders);
       setAds(data.ads);
       setAdsBillingDaily(data.adsBillingDaily || []);
+      setAdsBillingRaw(data.adsBillingRaw || []);
       setDailyRecharges(data.dailyRecharges || []);
       setTotalRechargesPaid(data.totalRechargesPaid || 0);
       setTotalFreeCredits(data.totalFreeCredits || 0);
@@ -198,10 +201,8 @@ export default function Dashboard() {
       if (startDate && orderDateStr < startDate) return false;
       if (endDate && orderDateStr > endDate) return false;
 
-      // Product filter (check if order's product is in the selected list)
-      if (!selectedProducts.includes(o.product_name)) {
-        return false;
-      }
+      // Product filter
+      if (!selectedProducts.includes(o.product_name)) return false;
 
       // Price filter
       if (selectedValueRange !== 'all') {
@@ -214,7 +215,6 @@ export default function Dashboard() {
       return true;
     });
 
-    // First pass: sum raw ads to calculate the paid ratio later
     filtered.forEach(order => {
       if (order.status?.toLowerCase().includes('cancelado')) {
         cancelledCount++;
@@ -233,39 +233,15 @@ export default function Dashboard() {
           totalPending += order.total_revenue;
         }
       }
+
+      const dateStr = format(parseISO(order.order_date), 'dd/MM/yyyy');
+      if (!dailyData[dateStr]) {
+        dailyData[dateStr] = { date: dateStr, revenue: 0, profit: 0, ads: 0 };
+      }
+      dailyData[dateStr].revenue += order.total_revenue;
+      dailyData[dateStr].profit += order.net_profit;
+      dailyData[dateStr].ads += order.ads_cost;
     });
-
-    // Calculate paidRatio BEFORE building chart data
-    // This is deferred until after dailyRecharges are filtered (below)
-
-    // If no billing data, fall back to the old ads table filtering
-    let realTotalAdsCost = tAdsCost;
-    if (adsBillingDaily.length === 0) {
-      const filteredAds = ads.filter(ad => {
-        const parts = ad.report_period.split(' - ');
-        if (parts.length === 2) {
-          const [adStartStr, adEndStr] = parts;
-          const [sDay, sMonth, sYear] = adStartStr.split('/');
-          const [eDay, eMonth, eYear] = adEndStr.split('/');
-          
-          const adStart = `${sYear}-${sMonth}-${sDay}`;
-          const adEnd = `${eYear}-${eMonth}-${eDay}`;
-
-          if (startDate && adEnd < startDate) return false;
-          if (endDate && adStart > endDate) return false;
-        }
-
-        const matched = selectedProducts.some(p => {
-          const adLower = ad.ad_name.toLowerCase();
-          const prodLower = p.toLowerCase();
-          return adLower.includes(prodLower) || prodLower.includes(adLower);
-        });
-        if (!matched) return false;
-
-        return true;
-      });
-      realTotalAdsCost = filteredAds.reduce((sum, ad) => sum + ad.cost, 0);
-    }
 
     // Filter daily recharges by the dashboard date range
     let fPaidRecharges = 0;
@@ -284,29 +260,12 @@ export default function Dashboard() {
     const globalTotalRecharges = totalRechargesPaid + totalFreeCredits;
     const ratio = globalTotalRecharges > 0 ? totalRechargesPaid / globalTotalRecharges : 1;
 
-    // Adjusted ads cost = only the cash portion of consumed ads
-    const adjustedTotalAdsCost = realTotalAdsCost * ratio;
-
-    // Lucro Real = Receita - Custo de Produtos - Ads Consumido * Proporção Paga
-    const tp = tr - tProductCost - adjustedTotalAdsCost;
-
-    // Build chart data with adjusted ads costs
-    filtered.forEach(order => {
-      if (order.status?.toLowerCase().includes('cancelado')) return;
-      const dateStr = format(parseISO(order.order_date), 'dd/MM/yyyy');
-      if (!dailyData[dateStr]) {
-        dailyData[dateStr] = { date: dateStr, revenue: 0, profit: 0, ads: 0 };
-      }
-      const adjAdsCost = order.ads_cost * ratio;
-      const adjProfit = order.total_revenue - order.product_cost - adjAdsCost;
-      dailyData[dateStr].revenue += order.total_revenue;
-      dailyData[dateStr].profit += adjProfit;
-      dailyData[dateStr].ads += adjAdsCost;
-    });
+    // Lucro Real = Receita - Custo de Produtos - Custo de Ads Rateado
+    const tp = tr - tProductCost - tAdsCost;
 
     return {
       totalRevenue: tr,
-      totalAdsCost: adjustedTotalAdsCost,
+      totalAdsCost: tAdsCost,
       totalProductCost: tProductCost,
       totalProfit: tp,
       totalOrders: validOrdersCount,
@@ -320,7 +279,7 @@ export default function Dashboard() {
       filteredFreeCredits: fFreeCredits,
       paidRatio: ratio
     };
-  }, [orders, ads, adsBillingDaily, dailyRecharges, totalRechargesPaid, totalFreeCredits, startDate, endDate, selectedProducts, selectedValueRange]);
+  }, [orders, dailyRecharges, totalRechargesPaid, totalFreeCredits, startDate, endDate, selectedProducts, selectedValueRange]);
 
   // Remove availableMonths since we use calendar inputs now
 
@@ -678,19 +637,21 @@ export default function Dashboard() {
             <thead>
               <tr>
                 <th>ID Pedido</th>
-                <th>Data Pedido</th>
-                <th>Status Pedido</th>
-                <th>Status Pagto</th>
-                <th>Valor Recebido</th>
-                <th>Data Pagto</th>
+                <th>Data</th>
+                <th>Status</th>
                 <th>Produto</th>
                 <th>Qtd.</th>
-                <th>Preço Orig.</th>
-                <th>Descontos</th>
-                <th>Receita Liq.</th>
+                <th>Subtotal Vendido</th>
+                <th>Receita Líq. (Antes Ads)</th>
                 <th>Custo Produto</th>
-                <th>Custo Ads</th>
-                <th>Lucro Líquido</th>
+                <th>Ads Consumido Rateado</th>
+                <th>% Pago Ads</th>
+                <th title="Custo de Ads real pago é o consumo efetivo de anúncios rateado entre os pedidos, descontada somente a parcela financiada por créditos promocionais gratuitos." style={{ cursor: 'help' }}>
+                  Custo Ads Real (?)
+                </th>
+                <th>Lucro Real</th>
+                <th>Margem Real</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -704,15 +665,6 @@ export default function Dashboard() {
                 } else if (isUnmatched) {
                   rowStyle = { backgroundColor: 'rgba(245, 158, 11, 0.05)', borderLeft: '3px solid var(--warning)' };
                 }
-                
-                const formatPayoutDate = (dateStr?: string) => {
-                  if (!dateStr) return '-';
-                  try {
-                    return format(parseISO(dateStr), 'dd/MM/yy');
-                  } catch {
-                    return dateStr.split('T')[0];
-                  }
-                };
 
                 return (
                   <tr key={order.order_id} style={rowStyle}>
@@ -732,44 +684,6 @@ export default function Dashboard() {
                         {order.status}
                       </span>
                     </td>
-                    <td>
-                      {order.payout_amount !== undefined && order.payout_amount !== null ? (
-                        <span style={{ 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: '4px', 
-                          fontSize: '0.75rem',
-                          backgroundColor: isUnmatched ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                          color: isUnmatched ? 'var(--danger)' : 'var(--success)',
-                          fontWeight: 'bold',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}>
-                          <CheckCircle size={10} />
-                          {isUnmatched ? 'Não Conciliado' : 'Recebido'}
-                        </span>
-                      ) : (
-                        <span style={{ 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: '4px', 
-                          fontSize: '0.75rem',
-                          backgroundColor: 'rgba(156, 163, 175, 0.2)',
-                          color: 'var(--text-muted)'
-                        }}>
-                          Pendente
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ fontWeight: 'bold' }}>
-                      {order.payout_amount !== undefined && order.payout_amount !== null ? (
-                        `R$ ${order.payout_amount.toFixed(2)}`
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {formatPayoutDate(order.payout_date)}
-                    </td>
                     <td style={{ 
                       maxWidth: '200px', 
                       whiteSpace: 'nowrap', 
@@ -781,13 +695,32 @@ export default function Dashboard() {
                       {order.product_name}
                     </td>
                     <td style={{ textAlign: 'center' }}>{order.quantity}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>R$ {((order.original_price || 0) * (order.quantity || 1)).toFixed(2)}</td>
-                    <td className="text-warning">- R$ {((order.seller_discount || 0) + (order.seller_coupon || 0)).toFixed(2)}</td>
-                    <td>R$ {order.total_revenue.toFixed(2)}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>
+                      R$ {((order.original_price || 0) - (order.seller_discount || 0)).toFixed(2)}
+                    </td>
+                    <td>
+                      R$ {(order.audit?.netRevenueBeforeAds || order.total_revenue).toFixed(2)}
+                    </td>
                     <td className="text-danger">- R$ {order.product_cost.toFixed(2)}</td>
-                    <td className="text-danger">- R$ {(order.ads_cost * paidRatio).toFixed(2)}</td>
-                    <td className={(order.total_revenue - order.product_cost - order.ads_cost * paidRatio) >= 0 && !isCancelled && !isUnmatched ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
-                      R$ {(order.total_revenue - order.product_cost - order.ads_cost * paidRatio).toFixed(2)}
+                    <td className="text-danger">- R$ {(order.audit?.allocatedRawAds || 0).toFixed(2)}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>
+                      {((order.audit?.paidRatio || 0) * 100).toFixed(1)}%
+                    </td>
+                    <td className="text-danger">- R$ {order.ads_cost.toFixed(2)}</td>
+                    <td className={(order.net_profit >= 0 && !isCancelled) ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
+                      R$ {order.net_profit.toFixed(2)}
+                    </td>
+                    <td className={(order.audit?.realMargin || 0) >= 0 && !isCancelled ? 'text-success' : 'text-danger'} style={{ fontWeight: 'bold' }}>
+                      {((order.audit?.realMargin || 0) * 100).toFixed(1)}%
+                    </td>
+                    <td>
+                      <button 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        onClick={() => setAuditOrder(order)}
+                      >
+                        Auditar
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1010,6 +943,202 @@ export default function Dashboard() {
                 className="btn btn-secondary"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Auditoria do Pedido */}
+      {auditOrder && auditOrder.audit && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--surface)',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            width: '100%',
+            maxWidth: '650px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border)',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <div>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', margin: 0 }}>
+                  Auditoria de Lucro Real
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.125rem 0 0 0' }}>
+                  Pedido ID: <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{auditOrder.order_id}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setAuditOrder(null)}
+                style={{ 
+                  color: 'var(--text-muted)', 
+                  backgroundColor: 'transparent', 
+                  border: 'none', 
+                  cursor: 'pointer' 
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Product Info */}
+              <div style={{ backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Item Vendido</p>
+                <p style={{ fontSize: '0.9375rem', fontWeight: '500', color: 'var(--text)' }}>{auditOrder.product_name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Quantidade: {auditOrder.quantity}</p>
+              </div>
+
+              {/* Grid with calculations */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                
+                {/* Left Column: Receita e Custos Shopee */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 'bold', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                    1. Fluxo Financeiro Shopee
+                  </h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Preço Subtotal:</span>
+                    <span>R$ {auditOrder.audit.orderSubtotal.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--warning)' }}>
+                    <span>(-) Descontos Vendedor:</span>
+                    <span>- R$ {auditOrder.audit.sellerDiscounts.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--danger)' }}>
+                    <span>(-) Comissão Shopee:</span>
+                    <span>- R$ {auditOrder.audit.commissionFee.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--danger)' }}>
+                    <span>(-) Taxa Serviço:</span>
+                    <span>- R$ {auditOrder.audit.serviceFee.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--danger)' }}>
+                    <span>(-) Taxa Transação / Envios:</span>
+                    <span>- R$ {auditOrder.audit.transactionFee.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontWeight: 'bold', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                    <span>Receita Líquida (Antes Ads):</span>
+                    <span className="text-success">R$ {auditOrder.audit.netRevenueBeforeAds.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Right Column: Custo Produto e Ads */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 'bold', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                    2. Custos de Operação (Bolso)
+                  </h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Custo do Fornecedor:</span>
+                    <span className="text-danger">R$ {auditOrder.audit.productCost.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Ads Consumido Rateado (Bruto):</span>
+                    <span className="text-danger">R$ {auditOrder.audit.allocatedRawAds.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Proporção Paga (paidRatio):</span>
+                    <span>{(auditOrder.audit.paidRatio * 100).toFixed(1)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontWeight: 'bold', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                    <span>Custo de Ads Real Pago (Bolso):</span>
+                    <span className="text-danger">R$ {auditOrder.audit.allocatedPaidAds.toFixed(2)}</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Moving Window Audit Detail */}
+              <div style={{ 
+                backgroundColor: 'rgba(79, 70, 229, 0.04)', 
+                border: '1px solid rgba(79, 70, 229, 0.2)', 
+                padding: '1rem', 
+                borderRadius: '8px',
+                fontSize: '0.8125rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
+              }}>
+                <p style={{ fontWeight: 'bold', color: 'var(--primary)' }}>Memória de Cálculo do Rateio de Ads (Janela 30 dias)</p>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  O rateio baseia-se na janela de 30 dias que termina na data do pedido (<b>{format(parseISO(auditOrder.order_date), 'dd/MM/yyyy')}</b>):
+                </p>
+                <ul style={{ paddingLeft: '1.25rem', margin: 0, color: 'var(--text)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <li>Gasto bruto de Ads na janela: <b>R$ {auditOrder.audit.adsConsumedInPeriod.toFixed(2)}</b></li>
+                  <li>Dinheiro de recargas reais da janela: <b>R$ {auditOrder.audit.paidCreditsInPeriod.toFixed(2)}</b></li>
+                  <li>Créditos gratuitos/bônus na janela: <b>R$ {auditOrder.audit.freeCreditsInPeriod.toFixed(2)}</b></li>
+                  <li>Fator paidRatio da janela: <b>{(auditOrder.audit.paidRatio * 100).toFixed(2)}%</b></li>
+                  <li>Ads real pago na janela (gasto × ratio): <b>R$ {(auditOrder.audit.adsConsumedInPeriod * auditOrder.audit.paidRatio).toFixed(2)}</b></li>
+                  <li>Peso do pedido na janela: <b>{auditOrder.audit.allocationWeight.toFixed(4)}%</b></li>
+                </ul>
+              </div>
+
+              {/* Net Profit Summary */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: '1rem 1.25rem', 
+                backgroundColor: 'rgba(255,255,255,0.02)', 
+                border: '1px solid var(--border)', 
+                borderRadius: '8px' 
+              }}>
+                <div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold' }}>LUCRO REAL DO PEDIDO</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: auditOrder.audit.realProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    R$ {auditOrder.audit.realProfit.toFixed(2)}
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold' }}>MARGEM REAL</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: auditOrder.audit.realMargin >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {(auditOrder.audit.realMargin * 100).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <button 
+                onClick={() => setAuditOrder(null)}
+                className="btn btn-primary"
+              >
+                Entendido
               </button>
             </div>
           </div>

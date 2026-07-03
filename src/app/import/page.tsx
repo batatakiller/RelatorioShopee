@@ -201,11 +201,12 @@ export default function ImportPage() {
           0
         );
 
-        // Original price: sum of original prices
-        const totalOriginalPrice = orderRows.reduce(
-          (sum, row) => sum + (parseFloat(String(row['Preço original'] || 0)) || 0),
-          0
-        );
+        // Original price: sum of (original price * quantity) for all items in the order
+        const totalOriginalPrice = orderRows.reduce((sum, row) => {
+          const qty = parseInt(String(row['Quantidade'] || '1')) || 1;
+          const price = parseFloat(String(row['Preço original'] || 0)) || 0;
+          return sum + (price * qty);
+        }, 0);
 
         // Seller discount: sum of seller discounts
         const totalSellerDiscount = orderRows.reduce(
