@@ -109,8 +109,6 @@ export async function fetchDashboardData() {
           // classify based on the description text.
           const descLower = (record.description || '').toLowerCase();
           const isFreeCredit = 
-            descLower.includes('comissão') || 
-            descLower.includes('comissao') || 
             descLower.includes('free') || 
             descLower.includes('bônus') || 
             descLower.includes('bonus') || 
@@ -136,6 +134,7 @@ export async function fetchDashboardData() {
       ads: adsRes.data as AdData[] || [],
       costs: costsRes.data as ProductCost[] || [],
       adsBillingDaily: Array.from(dailyMap.values()),
+      adsBillingRaw: billingData,
       dailyRecharges: Array.from(dailyRechargesMap.values()),
       totalRechargesPaid,
       totalFreeCredits,
@@ -470,6 +469,18 @@ export async function saveLeadAndSendKey(
     if (order && !orderError) {
       matchedProductName = order.product_name;
       isOrderFound = true;
+    }
+
+    // Order number not in the database and the customer hasn't chosen to
+    // proceed manually: the bot registers every paid order in real time,
+    // so an unknown number is almost certainly a typo. Return an explicit
+    // error (no lead is saved) so the form asks them to re-check it.
+    if (!isOrderFound && !selectedProduct) {
+      return {
+        success: false,
+        orderNotFound: true,
+        message: 'Pedido não encontrado. Verifique o número e tente novamente.'
+      };
     }
 
     // 2. Try to find a matching key
@@ -967,7 +978,7 @@ export async function approveLead(leadId: string) {
   } catch (error) {
     console.error('Error in approveLead:', error);
     const err = error as Error;
-    throw new Error(err.message || 'Failed to approve lead');
+    return { success: false, error: err.message || 'Failed to approve lead' };
   }
 }
 

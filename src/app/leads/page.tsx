@@ -187,6 +187,8 @@ export default function LeadsDashboard() {
       if (res.success) {
         alert('Lead aprovado e chave enviada por e-mail!');
         await loadData();
+      } else {
+        alert(res.error || 'Erro ao aprovar lead.');
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erro ao aprovar lead.');

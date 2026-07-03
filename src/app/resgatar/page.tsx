@@ -12,6 +12,8 @@ export default function ResgatarPage() {
   const [showProductSelector, setShowProductSelector] = useState(false);
   
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [notFoundAttempts, setNotFoundAttempts] = useState(0);
   const [result, setResult] = useState<{
     status: 'sent' | 'pending_verification' | 'pending_key';
     productName: string;
@@ -34,19 +36,56 @@ export default function ResgatarPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderId.trim() || !name.trim() || !email.trim()) {
+    setErrorMsg('');
+
+    // Normaliza: remove espaços, "#" e outros caracteres colados sem querer
+    const cleanedOrderId = orderId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleanedOrderId !== orderId) setOrderId(cleanedOrderId);
+
+    if (!cleanedOrderId || !name.trim() || !email.trim()) {
       alert('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    // IDs da Shopee têm ~14 caracteres alfanuméricos (ex: 260528ABCD1234)
+    if (!/^[A-Z0-9]{12,20}$/.test(cleanedOrderId)) {
+      setErrorMsg(
+        'Este número de pedido não parece válido. Na Shopee, abra "Meus Pedidos", ' +
+        'toque no pedido e copie o "ID do Pedido" (cerca de 14 letras e números, ex: 260528ABCD1234).'
+      );
       return;
     }
 
     setLoading(true);
     try {
       const res = await saveLeadAndSendKey(
-        orderId, 
-        name, 
-        email, 
+        cleanedOrderId,
+        name,
+        email,
         showProductSelector ? selectedProduct : undefined
       );
+
+      // Pedido não encontrado no sistema → orienta a conferir o número.
+      // Após 2 tentativas, libera o resgate manual via seleção de produto.
+      if ('orderNotFound' in res && res.orderNotFound) {
+        const attempts = notFoundAttempts + 1;
+        setNotFoundAttempts(attempts);
+        if (attempts >= 2) {
+          setShowProductSelector(true);
+          setSelectedProduct('Windows 11 Pro');
+          setErrorMsg(
+            'Pedido ainda não encontrado. Confira o número mais uma vez — ou, se tiver certeza ' +
+            'de que está correto, selecione abaixo o produto comprado e envie novamente para ' +
+            'processarmos o resgate manualmente.'
+          );
+        } else {
+          setErrorMsg(
+            'Pedido não encontrado. Verifique o número na Shopee: abra "Meus Pedidos", ' +
+            'toque no seu pedido e copie o "ID do Pedido" exatamente como aparece.'
+          );
+        }
+        return;
+      }
 
       if (res.success) {
         if (res.isDuplicate) {
@@ -226,14 +265,14 @@ export default function ResgatarPage() {
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#9ca3af', marginBottom: '0.5rem' }}>
               ID do Pedido Shopee
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Ex: 260528ABCD1234"
               value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
+              onChange={(e) => { setOrderId(e.target.value); if (errorMsg) setErrorMsg(''); }}
               disabled={loading}
               required
-              style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
+              style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: errorMsg ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
             />
           </div>
 
@@ -267,6 +306,14 @@ export default function ResgatarPage() {
               style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0f111a', border: '1px solid #2d3748', borderRadius: '8px', color: '#f3f4f6', outline: 'none', fontSize: '0.875rem' }}
             />
           </div>
+
+          {/* Error message (invalid / not-found order number) */}
+          {errorMsg && (
+            <div style={{ padding: '0.875rem 1rem', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '8px', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+              <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+              <p style={{ fontSize: '0.8125rem', color: '#fca5a5', lineHeight: '1.45', margin: 0 }}>{errorMsg}</p>
+            </div>
+          )}
 
           {/* Dynamic Product Selector (shown if order not found in DB) */}
           {showProductSelector && (
