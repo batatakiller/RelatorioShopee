@@ -570,10 +570,44 @@ export async function saveLeadAndSendKey(
   }
 }
 
+function findMatchingTemplate(productName: string, templates: any[]): any | undefined {
+  const prodLower = productName.toLowerCase();
+  return templates.find(t => {
+    const keyLower = t.product_key.toLowerCase();
+    
+    // 1. Direct match of the entire key as a substring
+    if (prodLower.includes(keyLower)) return true;
+    
+    // 2. Special case: if key contains connector "e" or "ou", we split and check if any part matches
+    const parts = keyLower.split(/\s+(?:e|ou)\s+/);
+    if (parts.length > 1) {
+      return parts.some((part: string) => {
+        let cleanPart = part;
+        if (keyLower.includes('office') && !part.includes('office')) {
+          cleanPart = 'office ' + part;
+        }
+        if (keyLower.includes('windows') && !part.includes('windows')) {
+          cleanPart = 'windows ' + part;
+        }
+        const words = cleanPart.split(/\s+/).filter((w: string) => w.length > 1 && w !== 'de');
+        return words.every((w: string) => prodLower.includes(w));
+      });
+    }
+    
+    // 3. Split match for standard keys
+    const words = keyLower.split(/\s+/).filter((w: string) => w.length > 1 && w !== 'de' && w !== 'ou' && w !== 'e');
+    if (words.length > 0) {
+      return words.every((w: string) => prodLower.includes(w));
+    }
+    
+    return false;
+  });
+}
+
 function getProductInstructions(prodName: string, licenseKey: string): string {
   const name = prodName.toLowerCase();
   
-  if (name.includes('office 2024')) {
+  if (name.includes('office') && name.includes('2024')) {
     return `
       <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 15px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
         <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Obrigado por adquirir o Office 2024 Pro Plus!</h3>
@@ -789,9 +823,7 @@ async function sendActivationEmail(params: {
     .select('*');
 
   const templatesList = dbTemplates || [];
-  const matchedTemplate = templatesList.find(t => 
-    params.productName.toLowerCase().includes(t.product_key.toLowerCase())
-  );
+  const matchedTemplate = findMatchingTemplate(params.productName, templatesList);
 
   // We hide the plain text license key from the email, rendering a link instead
   const secureKeyLink = `<span style="background-color: #e0e7ff; padding: 4px 8px; border-radius: 4px; border: 1px dashed #818cf8; color: #4f46e5; font-weight: bold; font-family: sans-serif; font-size: 14px;"><a href="${params.baseUrl}/licenca?id=${params.leadId}" style="color: #4f46e5; text-decoration: none;">🔑 Revelar Chave de Ativação</a></span>`;
@@ -874,9 +906,7 @@ export async function getLeadLicenseInfo(leadId: string) {
       .select('*');
 
     const templatesList = dbTemplates || [];
-    const matchedTemplate = templatesList.find(t => 
-      lead.product_name.toLowerCase().includes(t.product_key.toLowerCase())
-    );
+    const matchedTemplate = findMatchingTemplate(lead.product_name, templatesList);
 
     let instructionsHtml = '';
     if (matchedTemplate) {
