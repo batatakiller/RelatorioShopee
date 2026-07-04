@@ -148,14 +148,11 @@ export default function Dashboard() {
       });
       setSelectedProducts(Array.from(products));
 
-      // Set default date range based on order dates
-      if (calcOrders.length > 0) {
-        const dates = calcOrders.map(o => getLocalDateString(new Date(o.order_date)));
-        dates.sort();
-        setStartDate(dates[0]);
-        setEndDate(dates[dates.length - 1]);
-        setActiveFilter('all');
-      }
+      // Set default date range to 'today'
+      const todayStr = getLocalDateString(new Date());
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+      setActiveFilter('today');
     } catch (error) {
       console.error(error);
     }

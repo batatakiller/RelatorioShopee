@@ -238,6 +238,7 @@ export default function ImportPage() {
         // Determine order status (if any item is cancelled, the entire order is Cancelado)
         let status = 'Desconhecido';
         let isCancelled = false;
+        let isUnpaid = false;
         
         for (const row of orderRows) {
           const statusDevolucao = String(row['Status da Devolução / Reembolso'] || '');
@@ -249,9 +250,18 @@ export default function ImportPage() {
           ) {
             isCancelled = true;
           }
+          if (
+            rowStatus.toLowerCase().includes('não pago') ||
+            rowStatus.toLowerCase().includes('nao pago')
+          ) {
+            isUnpaid = true;
+          }
           if (rowStatus !== 'Desconhecido') {
             status = rowStatus;
           }
+        }
+        if (isUnpaid) {
+          return null;
         }
         if (isCancelled) {
           status = 'Cancelado';
@@ -282,7 +292,7 @@ export default function ImportPage() {
           seller_discount: totalSellerDiscount,
           seller_coupon: descontosExtras,
         };
-      });
+      }).filter((order): order is NonNullable<typeof order> => order !== null);
 
       // Upsert into Supabase using Server Action
       await upsertOrders(ordersData);
