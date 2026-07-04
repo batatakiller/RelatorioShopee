@@ -103,6 +103,8 @@ export default function ResgatarPage() {
             keySent: res.lead.license_key
           });
         }
+      } else {
+        setErrorMsg(res.message || 'Erro ao processar resgate.');
       }
     } catch (err) {
       console.error(err);

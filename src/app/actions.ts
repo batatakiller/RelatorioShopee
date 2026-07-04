@@ -463,6 +463,15 @@ export async function saveLeadAndSendKey(
       .eq('order_id', orderIdClean)
       .maybeSingle();
 
+    if (order && !orderError) {
+      if (order.status?.toLowerCase().includes('cancelado')) {
+        return {
+          success: false,
+          message: 'Não é possível resgatar chaves para um pedido cancelado.'
+        };
+      }
+    }
+
     let matchedProductName = selectedProduct || '';
     let isOrderFound = false;
 
