@@ -143,10 +143,10 @@ export default function ResgatarPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#f3f4f6', fontSize: '0.875rem', fontWeight: 'bold' }}>
               <Key size={16} style={{ color: '#ef4444' }} />
-              <span>Chave Enviada</span>
+              <span>Chave de Ativação</span>
             </div>
-            <p style={{ fontFamily: 'monospace', fontSize: '1.1rem', color: '#ef4444', fontWeight: 'bold', paddingLeft: '1.5rem', letterSpacing: '0.5px' }}>
-              {result.keySent ? result.keySent : 'Exibida em seu e-mail'}
+            <p style={{ fontSize: '0.925rem', color: '#ef4444', fontWeight: '600', paddingLeft: '1.5rem', lineHeight: '1.4' }}>
+              Enviada para o seu e-mail. Por razões de segurança, acesse o link de ativação enviado para revelar a sua chave.
             </p>
           </div>
 

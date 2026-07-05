@@ -901,6 +901,17 @@ export async function getLeadLicenseInfo(leadId: string) {
       throw new Error('Licença não localizada no sistema. Caso tenha dúvidas, contate o suporte.');
     }
 
+    // Fetch corresponding order to check status
+    const { data: order } = await supabase
+      .from('shopee_orders')
+      .select('status')
+      .eq('order_id', lead.order_id)
+      .maybeSingle();
+
+    if (order && order.status?.toLowerCase().includes('cancelado')) {
+      throw new Error('Não é possível revelar a chave pois este pedido foi cancelado.');
+    }
+
     // Auto-confirm receipt upon viewing the license page
     if (lead.status !== 'recebido') {
       await supabase
