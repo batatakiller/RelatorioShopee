@@ -498,7 +498,7 @@ export async function saveLeadAndSendKey(
 
     // We ONLY attempt automatic key dispatch if the order was officially found/imported
     if (isOrderFound) {
-      statusVal = 'pending_key'; // default if no key is in stock
+      statusVal = 'pending_key';
 
       const { data: availableKeys } = await supabase
         .from('license_keys')
@@ -506,11 +506,37 @@ export async function saveLeadAndSendKey(
         .eq('is_used', false);
 
       const keysList = availableKeys || [];
-      const matchedKey = findMatchingKey(matchedProductName, keysList);
+      const products = matchedProductName.split(/\s*\+\s*/).map((p: string) => p.trim()).filter(Boolean);
+      const matchedKeys: any[] = [];
+      const allocatedIds = new Set<string>();
+      let allKeysFound = true;
 
-      if (matchedKey) {
-        licenseKeyText = matchedKey.key_code;
-        statusVal = 'sent';
+      for (const prod of products) {
+        const remainingKeys = keysList.filter((k: any) => !allocatedIds.has(k.id));
+        const key = findMatchingKey(prod, remainingKeys);
+        if (key) {
+          matchedKeys.push(key);
+          allocatedIds.add(key.id);
+        } else {
+          allKeysFound = false;
+        }
+      }
+
+      if (matchedKeys.length > 0) {
+        licenseKeyText = matchedKeys.map(k => k.key_code).join(' / ');
+        statusVal = allKeysFound ? 'sent' : 'pending_key';
+
+        // Mark matched keys as used
+        for (const key of matchedKeys) {
+          await supabase
+            .from('license_keys')
+            .update({ 
+              is_used: true, 
+              order_id: orderIdClean, 
+              used_at: new Date().toISOString() 
+            })
+            .eq('id', key.id);
+        }
       }
     } else {
       statusVal = 'pending_verification';
@@ -611,6 +637,47 @@ function findMatchingTemplate(productName: string, templates: any[]): any | unde
     
     return false;
   });
+}
+
+function getCombinedInstructions(
+  productName: string,
+  licenseKey: string,
+  templatesList: any[]
+): string {
+  const products = productName.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
+  const keys = licenseKey.split(/\s*\/\s*/).map(k => k.trim()).filter(Boolean);
+
+  if (products.length <= 1) {
+    const matchedTemplate = findMatchingTemplate(productName, templatesList);
+    if (matchedTemplate) {
+      return matchedTemplate.template_html.replace(/{licenseKey}/g, licenseKey);
+    }
+    return getProductInstructions(productName, licenseKey);
+  }
+
+  let combinedHtml = '';
+  for (let i = 0; i < products.length; i++) {
+    const prod = products[i];
+    const key = keys[i] || licenseKey || 'Aguardando liberação de estoque';
+    const matchedTemplate = findMatchingTemplate(prod, templatesList);
+    
+    let prodInstructions = '';
+    if (matchedTemplate) {
+      prodInstructions = matchedTemplate.template_html.replace(/{licenseKey}/g, key);
+    } else {
+      prodInstructions = getProductInstructions(prod, key);
+    }
+
+    combinedHtml += `
+      <div style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; background-color: #ffffff; color: #2d3748;">
+        <h2 style="color: #4f46e5; margin-top: 0; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; font-size: 18px;">
+          📦 ${prod}
+        </h2>
+        ${prodInstructions}
+      </div>
+    `;
+  }
+  return combinedHtml;
 }
 
 function getProductInstructions(prodName: string, licenseKey: string): string {
@@ -837,12 +904,7 @@ async function sendActivationEmail(params: {
   // We hide the plain text license key from the email, rendering a link instead
   const secureKeyLink = `<span style="background-color: #e0e7ff; padding: 4px 8px; border-radius: 4px; border: 1px dashed #818cf8; color: #4f46e5; font-weight: bold; font-family: sans-serif; font-size: 14px;"><a href="${params.baseUrl}/licenca?id=${params.leadId}" style="color: #4f46e5; text-decoration: none;">🔑 Revelar Chave de Ativação</a></span>`;
 
-  let instructionsHtml = '';
-  if (matchedTemplate) {
-    instructionsHtml = matchedTemplate.template_html.replace(/{licenseKey}/g, secureKeyLink);
-  } else {
-    instructionsHtml = getProductInstructions(params.productName, secureKeyLink);
-  }
+  let instructionsHtml = getCombinedInstructions(params.productName, secureKeyLink, templatesList);
 
   // Inject clickable WhatsApp support link with order ID prefilled
   const waMessage = `Olá! Preciso de suporte com o pedido #${params.orderId} (${params.productName})`;
@@ -934,13 +996,7 @@ export async function getLeadLicenseInfo(leadId: string) {
     const templatesList = dbTemplates || [];
     const matchedTemplate = findMatchingTemplate(lead.product_name, templatesList);
 
-    let instructionsHtml = '';
-    if (matchedTemplate) {
-      // Re-inject the license key into template
-      instructionsHtml = matchedTemplate.template_html.replace(/{licenseKey}/g, lead.license_key || 'Aguardando liberação de estoque');
-    } else {
-      instructionsHtml = getProductInstructions(lead.product_name, lead.license_key || 'Aguardando liberação de estoque');
-    }
+    let instructionsHtml = getCombinedInstructions(lead.product_name, lead.license_key || 'Aguardando liberação de estoque', templatesList);
 
     // Inject clickable WhatsApp support link with order ID prefilled
     const waMessage = `Olá! Preciso de suporte com o pedido #${lead.order_id} (${lead.product_name})`;
@@ -1004,16 +1060,44 @@ export async function approveLead(leadId: string) {
       .eq('is_used', false);
 
     const keysList = availableKeys || [];
-    const matchedKey = findMatchingKey(lead.product_name, keysList);
+    const products = lead.product_name.split(/\s*\+\s*/).map((p: string) => p.trim()).filter(Boolean);
+    const matchedKeys: any[] = [];
+    const allocatedIds = new Set<string>();
+    let allKeysFound = true;
 
-    if (!matchedKey) {
-      throw new Error(`Nenhuma chave disponível para o produto "${lead.product_name}".`);
+    for (const prod of products) {
+      const remainingKeys = keysList.filter((k: any) => !allocatedIds.has(k.id));
+      const key = findMatchingKey(prod, remainingKeys);
+      if (key) {
+        matchedKeys.push(key);
+        allocatedIds.add(key.id);
+      } else {
+        allKeysFound = false;
+      }
+    }
+
+    if (!allKeysFound || matchedKeys.length < products.length) {
+      throw new Error(`Estoque insuficiente. Não há chaves disponíveis para todos os produtos do pedido (${lead.product_name}).`);
+    }
+
+    const licenseKeyText = matchedKeys.map(k => k.key_code).join(' / ');
+
+    // Mark matched keys as used
+    for (const key of matchedKeys) {
+      await supabase
+        .from('license_keys')
+        .update({ 
+          is_used: true, 
+          order_id: lead.order_id, 
+          used_at: new Date().toISOString() 
+        })
+        .eq('id', key.id);
     }
 
     const { data: updatedLead } = await supabase
       .from('leads')
       .update({
-        license_key: matchedKey.key_code,
+        license_key: licenseKeyText,
         status: 'sent'
       })
       .eq('id', leadId)
@@ -1031,7 +1115,7 @@ export async function approveLead(leadId: string) {
       name: lead.name,
       orderId: lead.order_id,
       productName: lead.product_name,
-      licenseKey: matchedKey.key_code,
+      licenseKey: licenseKeyText,
       leadId: lead.id,
       baseUrl
     });
