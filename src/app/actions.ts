@@ -525,18 +525,6 @@ export async function saveLeadAndSendKey(
       if (matchedKeys.length > 0) {
         licenseKeyText = matchedKeys.map(k => k.key_code).join(' / ');
         statusVal = allKeysFound ? 'sent' : 'pending_key';
-
-        // Mark matched keys as used
-        for (const key of matchedKeys) {
-          await supabase
-            .from('license_keys')
-            .update({ 
-              is_used: true, 
-              order_id: orderIdClean, 
-              used_at: new Date().toISOString() 
-            })
-            .eq('id', key.id);
-        }
       }
     } else {
       statusVal = 'pending_verification';
@@ -1081,18 +1069,6 @@ export async function approveLead(leadId: string) {
     }
 
     const licenseKeyText = matchedKeys.map(k => k.key_code).join(' / ');
-
-    // Mark matched keys as used
-    for (const key of matchedKeys) {
-      await supabase
-        .from('license_keys')
-        .update({ 
-          is_used: true, 
-          order_id: lead.order_id, 
-          used_at: new Date().toISOString() 
-        })
-        .eq('id', key.id);
-    }
 
     const { data: updatedLead } = await supabase
       .from('leads')
