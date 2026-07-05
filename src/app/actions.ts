@@ -844,6 +844,12 @@ async function sendActivationEmail(params: {
     instructionsHtml = getProductInstructions(params.productName, secureKeyLink);
   }
 
+  // Inject clickable WhatsApp support link with order ID prefilled
+  const waMessage = `Olá! Preciso de suporte com o pedido #${params.orderId} (${params.productName})`;
+  const waUrl = `https://wa.me/5511935856950?text=${encodeURIComponent(waMessage)}`;
+  const waLink = `🟢 <strong>Whatsapp: <a href="${waUrl}" style="color: #10b981; font-weight: bold; text-decoration: underline;">+55 (11) 93585-6950 (Falar no WhatsApp)</a></strong>`;
+  instructionsHtml = instructionsHtml.replace(/🟢\s*<strong>Whatsapp:\s*\+55\s*\(11\)\s*93585-6950<\/strong>/gi, waLink);
+
   const mailOptions = {
     from: '"SuperSoftware - Entrega de Licenças" <pedido@supersoftware.info>',
     to: params.email,
@@ -935,6 +941,12 @@ export async function getLeadLicenseInfo(leadId: string) {
     } else {
       instructionsHtml = getProductInstructions(lead.product_name, lead.license_key || 'Aguardando liberação de estoque');
     }
+
+    // Inject clickable WhatsApp support link with order ID prefilled
+    const waMessage = `Olá! Preciso de suporte com o pedido #${lead.order_id} (${lead.product_name})`;
+    const waUrl = `https://wa.me/5511935856950?text=${encodeURIComponent(waMessage)}`;
+    const waLink = `🟢 <strong>Whatsapp: <a href="${waUrl}" style="color: #10b981; font-weight: bold; text-decoration: underline;">+55 (11) 93585-6950 (Falar no WhatsApp)</a></strong>`;
+    instructionsHtml = instructionsHtml.replace(/🟢\s*<strong>Whatsapp:\s*\+55\s*\(11\)\s*93585-6950<\/strong>/gi, waLink);
 
     return {
       success: true,

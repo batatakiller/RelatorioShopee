@@ -163,12 +163,6 @@ export default function ResgatarPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <a 
-              href={`mailto:pedido@supersoftware.info?subject=Confirmar%20Recebimento%20Pedido%20${orderId}&body=Recebido`}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem', backgroundColor: '#4f46e5', color: 'white', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '600', textDecoration: 'none', transition: 'background-color 0.2s' }}
-            >
-              Responder "Recebido" pelo E-mail
-            </a>
             <button 
               onClick={() => {
                 setResult(null);
@@ -177,9 +171,9 @@ export default function ResgatarPage() {
                 setEmail('');
                 setShowProductSelector(false);
               }}
-              style={{ width: '100%', padding: '0.75rem', backgroundColor: 'transparent', border: '1px solid #2d3748', color: '#9ca3af', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', transition: 'background-color 0.2s' }}
+              style={{ width: '100%', padding: '0.75rem', backgroundColor: '#4f46e5', border: 'none', color: 'white', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '600', transition: 'background-color 0.2s' }}
             >
-              Resgatar Outro Pedido
+              Fazer Outro Resgate
             </button>
           </div>
         </div>
