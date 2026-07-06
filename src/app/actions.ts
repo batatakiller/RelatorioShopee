@@ -809,75 +809,56 @@ async function sendActivationEmail(params: {
       'List-Unsubscribe': `<mailto:unsubscribe@supersoftware.info>, <${params.baseUrl}/descadastro>`
     },
     html: `
-      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 30px 20px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1a202c;">
         
-        <!-- Header / Brand -->
-        <div style="text-align: center; margin-bottom: 30px;">
-          <span style="font-size: 24px; font-weight: bold; color: #4f46e5; letter-spacing: -0.5px;">SuperSoftware</span>
-          <div style="font-size: 12px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Entrega de Licenças Segura</div>
-        </div>
-
         <!-- Greeting -->
-        <div style="margin-bottom: 25px;">
-          <h2 style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.3px;">Olá, ${params.name}!</h2>
-          <p style="font-size: 15px; line-height: 1.5; color: #475569; margin: 0;">
-            A licença digital do seu produto adquirido na Shopee já foi gerada com sucesso e está pronta para resgate.
-          </p>
+        <h2 style="color: #4f46e5; margin-bottom: 20px;">Olá, ${params.name}!</h2>
+        <p style="font-size: 15px; color: #4a5568; line-height: 1.5;">
+          Sua licença da SuperSoftware foi gerada com sucesso para o seu pedido da Shopee.
+        </p>
+        
+        <!-- Order Details -->
+        <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 5px 0; font-size: 14px; color: #2d3748;"><strong>Produto:</strong> ${params.productName}</p>
+          <p style="margin: 5px 0; font-size: 14px; color: #2d3748;"><strong>Pedido:</strong> #${params.orderId}</p>
         </div>
 
-        <!-- Order Info Card -->
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-          <h3 style="font-size: 15px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Detalhes do Pedido</h3>
-          
-          <div style="margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: #64748b;">Produto:</span>
-            <strong style="color: #0f172a; text-align: right; max-width: 70%;">${params.productName}</strong>
-          </div>
-          
-          <div style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: #64748b;">Código do Pedido:</span>
-            <strong style="color: #0f172a;">#${params.orderId}</strong>
-          </div>
-        </div>
-
-        <!-- Main CTA Button -->
-        <div style="text-align: center; margin: 35px 0;">
-          <p style="font-size: 14px; color: #475569; margin: 0 0 15px 0;">Clique no botão abaixo para revelar a sua chave e ver as instruções passo a passo:</p>
+        <!-- Key Rescue Button -->
+        <div style="text-align: center; margin: 25px 0;">
           <div style="margin-top: 15px;">
             ${secureKeyLink}
           </div>
         </div>
 
-        <!-- Importante Note -->
-        <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 15px; margin-bottom: 30px;">
-          <p style="margin: 0; font-size: 13px; font-weight: 600; color: #92400e;">
-            ⚠️ IMPORTANTE PARA GARANTIR O RECEBIMENTO:
-          </p>
-          <p style="margin: 6px 0 0 0; font-size: 13px; line-height: 1.4; color: #78350f;">
-            Adicione o e-mail <a href="mailto:pedido@supersoftware.info" style="color: #b45309; font-weight: 600; text-decoration: underline;">pedido@supersoftware.info</a> aos seus contatos confiáveis para garantir o recebimento de atualizações e suporte futuro.
+        <!-- Warning Box -->
+        <div style="margin: 25px 0; border: 2px solid #feebc8; background-color: #fffaf0; border-radius: 6px; padding: 15px;">
+          <p style="margin: 0; font-weight: bold; color: #c05621; font-size: 14px;">📩 ATENÇÃO - IMPORTANTE PARA GARANTIR O RECEBIMENTO:</p>
+          <p style="margin: 5px 0 0 0; font-size: 13px; color: #744210; line-height: 1.4;">
+            Para garantir que você receba futuras chaves e ofertas na sua caixa de entrada, 
+            <strong>adicione o e-mail <a href="mailto:pedido@supersoftware.info" style="color: #b45309; font-weight: bold;">pedido@supersoftware.info</a> aos seus contatos</strong> 
+            ou marque este e-mail como "Não é spam".
           </p>
         </div>
 
         <!-- WhatsApp Support Box -->
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 25px; text-align: center;">
-          <strong style="font-size: 14px; color: #0f172a; display: block; margin-bottom: 8px;">🟢 Suporte Técnico Especializado</strong>
-          <p style="font-size: 13px; color: #64748b; margin: 0 0 15px 0;">Teve alguma dúvida ou dificuldade? Nossa equipe de suporte está pronta para ajudar:</p>
-          <a href="${waUrl}" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.15);">
-            💬 Falar no WhatsApp
+        <div style="background-color: #e6fffa; border: 1px solid #b2f5ea; padding: 15px; border-radius: 6px; margin: 20px 0; font-size: 13px; color: #0d9488; line-height: 1.5;">
+          <strong style="font-size: 14px; color: #0f766e; display: block; margin-bottom: 5px;">🟢 Suporte Técnico Especializado:</strong>
+          Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição no WhatsApp:<br>
+          <strong>Número: +55 (11) 93585-6950</strong><br><br>
+          <a href="${waUrl}" target="_blank" style="display: inline-block; padding: 8px 16px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; box-shadow: 0 2px 4px rgba(16,185,129,0.1);">
+            💬 Chamar no WhatsApp
           </a>
         </div>
 
         <!-- Footer -->
-        <div style="text-align: center; margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 12px; color: #e2e8f0;">
-          SuperSoftware - Distribuidor Oficial Licenciado<br>
-          <a href="https://www.supersoftware.info" style="color: #6366f1; text-decoration: none; margin: 0 5px;">www.supersoftware.info</a> | 
-          <a href="mailto:pedido@supersoftware.info" style="color: #6366f1; text-decoration: none; margin: 0 5px;">pedido@supersoftware.info</a>
-          
-          <p style="font-size: 11px; margin-top: 15px; color: #f1f5f9; border-top: 1px dashed #f1f5f9; padding-top: 15px;">
-            Este é um e-mail automático de entrega de licença.<br>
-            Se deseja não receber mais nossas atualizações de ofertas, <a href="${params.baseUrl}/descadastro?email=${encodeURIComponent(params.email)}" style="color: #6366f1; text-decoration: underline;">clique aqui para se descadastrar</a>.
-          </p>
-        </div>
+        <p style="font-size: 12px; color: #a0aec0; margin-top: 40px; text-align: center; line-height: 1.5;">
+          SuperSoftware - Licenciamento Oficial Microsoft<br>
+          <a href="mailto:pedido@supersoftware.info" style="color: #4f46e5; text-decoration: none;">pedido@supersoftware.info</a> | <a href="https://www.supersoftware.info" style="color: #4f46e5; text-decoration: none;">www.supersoftware.info</a>
+        </p>
+        <p style="font-size: 11px; color: #a0aec0; margin-top: 15px; text-align: center; border-top: 1px dashed #edf2f7; padding-top: 15px;">
+          Este é um e-mail de entrega de licença solicitado por você.<br>
+          Caso não queira mais receber nossos informativos e ofertas, <a href="${params.baseUrl}/descadastro?email=${encodeURIComponent(params.email)}" style="color: #4f46e5; text-decoration: underline;">clique aqui para se descadastrar</a>.
+        </p>
 
       </div>
     `
