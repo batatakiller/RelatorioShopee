@@ -595,6 +595,39 @@ export async function saveLeadAndSendKey(
 
 function findMatchingTemplate(productName: string, templates: any[]): any | undefined {
   const prodLower = productName.toLowerCase();
+  
+  // Extract variation if present (e.g. "variação: 2016")
+  let matchTarget = prodLower;
+  const varMatch = prodLower.match(/varia[çc][ãa]o:\s*([^\s\)]+)/);
+  if (varMatch) {
+    matchTarget = varMatch[1].trim();
+  }
+
+  // 1. Check for Office products with variations
+  if (prodLower.includes('office')) {
+    if (matchTarget.includes('2024') || (!varMatch && prodLower.includes('2024'))) {
+      const match = templates.find(t => t.product_key.toLowerCase() === 'office 2024');
+      if (match) return match;
+    }
+    if (matchTarget.includes('2021') || matchTarget.includes('2019') || matchTarget.includes('2016') ||
+        (!varMatch && (prodLower.includes('2021') || prodLower.includes('2019') || prodLower.includes('2016')))) {
+      const match = templates.find(t => t.product_key.toLowerCase() === 'office 2016 e 2021');
+      if (match) return match;
+    }
+  }
+
+  // 2. Check for Windows products with variations
+  if (prodLower.includes('windows')) {
+    if (matchTarget.includes('11') || (!varMatch && prodLower.includes('11'))) {
+      const match = templates.find(t => t.product_key.toLowerCase().includes('windows') && t.product_key.toLowerCase().includes('11'));
+      if (match) return match;
+    }
+    if (matchTarget.includes('10') || (!varMatch && prodLower.includes('10'))) {
+      const match = templates.find(t => t.product_key.toLowerCase().includes('windows') && t.product_key.toLowerCase().includes('10'));
+      if (match) return match;
+    }
+  }
+
   return templates.find(t => {
     const keyLower = t.product_key.toLowerCase();
     
@@ -692,10 +725,13 @@ function getProductInstructions(prodName: string, licenseKey: string, orderId: s
   `;
 
   if (name.includes('office')) {
-    const is2024 = name.includes('2024');
-    const is2021 = name.includes('2021');
-    const is2019 = name.includes('2019');
-    const is2016 = name.includes('2016');
+    const varMatch = name.match(/varia[çc][ãa]o:\s*([^\s\)]+)/);
+    const varYear = varMatch ? varMatch[1].trim() : '';
+
+    const is2024 = varYear.includes('2024') || (!varMatch && name.includes('2024'));
+    const is2021 = varYear.includes('2021') || (!varMatch && name.includes('2021'));
+    const is2019 = varYear.includes('2019') || (!varMatch && name.includes('2019'));
+    const is2016 = varYear.includes('2016') || (!varMatch && name.includes('2016'));
     const officeName = is2024 ? 'Office 2024 Pro Plus' : (is2021 ? 'Office 2021 Pro Plus' : (is2019 ? 'Office 2019 Pro Plus' : (is2016 ? 'Office 2016 Pro Plus' : 'Office Pro Plus')));
 
     return `
@@ -738,7 +774,10 @@ function getProductInstructions(prodName: string, licenseKey: string, orderId: s
   }
   
   if (name.includes('windows')) {
-    const isWindows11 = name.includes('11');
+    const varMatch = name.match(/varia[çc][ãa]o:\s*([^\s\)]+)/);
+    const varYear = varMatch ? varMatch[1].trim() : '';
+
+    const isWindows11 = varYear.includes('11') || (!varMatch && name.includes('11'));
     const winName = isWindows11 ? 'Windows 11 Pro' : 'Windows 10 Pro';
     return `
       <div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
