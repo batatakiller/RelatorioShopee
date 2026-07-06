@@ -59,12 +59,51 @@ function LicencaContent() {
     loadLicense();
   }, [leadId]);
 
-  const handleCopy = () => {
-    if (!lead?.licenseKey) return;
-    navigator.clipboard.writeText(lead.licenseKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  useEffect(() => {
+    if (!instructionsHtml) return;
+
+    // We wait for the DOM to render the instructions
+    const timer = setTimeout(() => {
+      const codeBlocks = document.querySelectorAll('.instructions-render code');
+      codeBlocks.forEach((element) => {
+        const codeEl = element as HTMLElement;
+        codeEl.style.cursor = 'pointer';
+        codeEl.setAttribute('title', 'Clique para copiar o comando');
+        
+        // Remove existing listeners if any by cloning
+        const newCodeEl = codeEl.cloneNode(true) as HTMLElement;
+        codeEl.parentNode?.replaceChild(newCodeEl, codeEl);
+
+        const originalText = newCodeEl.textContent || '';
+
+        newCodeEl.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(originalText);
+            
+            // Set styles dynamically with important to bypass any style sheets
+            newCodeEl.style.setProperty('background-color', '#065f46', 'important');
+            newCodeEl.style.setProperty('color', '#34d399', 'important');
+            newCodeEl.style.setProperty('border-color', '#059669', 'important');
+            
+            newCodeEl.textContent = '✓ Copiado!';
+
+            setTimeout(() => {
+              newCodeEl.style.setProperty('background-color', '', '');
+              newCodeEl.style.setProperty('color', '', '');
+              newCodeEl.style.setProperty('border-color', '', '');
+              newCodeEl.textContent = originalText;
+            }, 2000);
+          } catch (err) {
+            console.error('Erro ao copiar comando:', err);
+          }
+        });
+      });
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [instructionsHtml]);
+
+
 
   if (loading) {
     return (
@@ -152,36 +191,12 @@ function LicencaContent() {
           {/* License Key Box */}
           <div style={{ backgroundColor: '#141622', border: '1px solid #2d3748', borderRadius: '8px', padding: '1.5rem', marginBottom: '2rem' }}>
             <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#9ca3af', display: 'block', marginBottom: '0.75rem' }}>
-              Sua Chave de Ativação (Copy/Paste)
+              Chave de Ativação
             </span>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'monospace', fontSize: '1.25rem', fontWeight: 'bold', color: '#ef4444', letterSpacing: '0.05em', wordBreak: 'break-all' }}>
                 {lead.licenseKey}
               </span>
-              {lead.licenseKey !== 'Aguardando liberação de estoque' && (
-                <button
-                  onClick={handleCopy}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    backgroundColor: copied ? '#10b981' : '#4f46e5',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '0.825rem',
-                    transition: 'all 0.2s ease',
-                    minWidth: '100px',
-                    justifyContent: 'center'
-                  }}
-                >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
-                  {copied ? 'Copiado!' : 'Copiar'}
-                </button>
-              )}
             </div>
           </div>
 
@@ -241,18 +256,7 @@ function LicencaContent() {
         .instructions-render h3, .instructions-render h4 {
           color: #f3f4f6 !important;
         }
-        .instructions-render code {
-          background-color: #141622 !important;
-          border: 1px solid #2d3748 !important;
-          padding: 2px 6px !important;
-          border-radius: 4px !important;
-          color: #ef4444 !important;
-        }
-        .instructions-render div {
-          background-color: #141622 !important;
-          border: 1px solid #2d3748 !important;
-          color: #e2e8f0 !important;
-        }
+
       `}</style>
     </div>
   );

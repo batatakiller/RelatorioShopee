@@ -630,7 +630,8 @@ function findMatchingTemplate(productName: string, templates: any[]): any | unde
 function getCombinedInstructions(
   productName: string,
   licenseKey: string,
-  templatesList: any[]
+  templatesList: any[],
+  orderId: string
 ): string {
   const products = productName.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
   const keys = licenseKey.split(/\s*\/\s*/).map(k => k.trim()).filter(Boolean);
@@ -638,9 +639,11 @@ function getCombinedInstructions(
   if (products.length <= 1) {
     const matchedTemplate = findMatchingTemplate(productName, templatesList);
     if (matchedTemplate) {
-      return matchedTemplate.template_html.replace(/{licenseKey}/g, licenseKey);
+      return matchedTemplate.template_html
+        .replace(/{licenseKey}/g, licenseKey)
+        .replace(/{orderId}/g, orderId);
     }
-    return getProductInstructions(productName, licenseKey);
+    return getProductInstructions(productName, licenseKey, orderId);
   }
 
   let combinedHtml = '';
@@ -651,9 +654,11 @@ function getCombinedInstructions(
     
     let prodInstructions = '';
     if (matchedTemplate) {
-      prodInstructions = matchedTemplate.template_html.replace(/{licenseKey}/g, key);
+      prodInstructions = matchedTemplate.template_html
+        .replace(/{licenseKey}/g, key)
+        .replace(/{orderId}/g, orderId);
     } else {
-      prodInstructions = getProductInstructions(prod, key);
+      prodInstructions = getProductInstructions(prod, key, orderId);
     }
 
     combinedHtml += `
@@ -668,86 +673,66 @@ function getCombinedInstructions(
   return combinedHtml;
 }
 
-function getProductInstructions(prodName: string, licenseKey: string): string {
+function getProductInstructions(prodName: string, licenseKey: string, orderId: string): string {
   const name = prodName.toLowerCase();
   
-  if (name.includes('office') && name.includes('2024')) {
+  const waMessage = `Olá! Preciso de suporte com o pedido #${orderId}`;
+  const waUrl = `https://wa.me/5511935856950?text=${encodeURIComponent(waMessage)}`;
+  const supportBox = `
+    <div style="background-color: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); padding: 15px 20px; border-radius: 8px; margin-top: 25px; color: #fef08a; font-size: 13px; line-height: 1.5; font-family: system-ui, sans-serif;">
+      <strong style="font-size: 14px; color: #fbbf24; display: block; margin-bottom: 6px;">🟢 Suporte Técnico Especializado:</strong>
+      Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição no WhatsApp:<br>
+      <strong style="font-size: 14px; color: #ffffff;">Número: +55 (11) 93585-6950</strong><br><br>
+      <a href="${waUrl}" 
+         target="_blank" 
+         style="display: inline-block; padding: 8px 16px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">
+        💬 Chamar no WhatsApp
+      </a>
+    </div>
+  `;
+
+  if (name.includes('office')) {
+    const is2024 = name.includes('2024');
+    const is2021 = name.includes('2021');
+    const is2019 = name.includes('2019');
+    const is2016 = name.includes('2016');
+    const officeName = is2024 ? 'Office 2024 Pro Plus' : (is2021 ? 'Office 2021 Pro Plus' : (is2019 ? 'Office 2019 Pro Plus' : (is2016 ? 'Office 2016 Pro Plus' : 'Office Pro Plus')));
+
     return `
-      <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 15px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-        <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Obrigado por adquirir o Office 2024 Pro Plus!</h3>
-        <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">${licenseKey}</span></p>
-        <ul style="padding-left: 20px; margin: 10px 0; font-size: 14px; color: #4a5568; list-style-type: none; margin-left: 0; padding-left: 0;">
-          <li>• <strong>Licença:</strong> 1 dispositivo (uso vitalício)</li>
-          <li>• <strong>Método de Instalação:</strong> Download Digital</li>
-        </ul>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">1. Remova versões anteriores do Office</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Se houver qualquer versão do Office instalada em seu computador — incluindo outras versões do Office 2024 —, desinstale completamente antes de prosseguir.
-        </p>
-        <p style="margin: 5px 0; font-size: 14px; color: #1a202c; font-weight: bold;">✔️ Isso evita erros e conflitos durante a nova instalação.</p>
-        <div style="background-color: #edf2f7; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #4a5568;">
-          <strong>Como desinstalar versões anteriores do Office:</strong><br>
-          Abra o Menu Iniciar &gt; Pesquisar <strong>Painel de Controle</strong> &gt; <strong>Programas e Recursos</strong>.<br>
-          Encontre <em>Microsoft 365 - pt-br</em> e <em>Microsoft OneNote - pt-br</em>, clique em Desinstalar e siga as instruções.<br>
-          Reinicie o computador após a desinstalação.
-        </div>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">2. Reinicie o computador</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Após a desinstalação, reinicie a máquina para que as alterações tenham efeito.
+      <div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+        <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🚀 Método de Instalação Automático (PowerShell) - ${officeName}</h3>
+        <p style="margin: 5px 0; font-size: 14px; color: #e2e8f0;">
+          Para instalar e ativar o seu Office de forma totalmente automática, siga as etapas abaixo:
         </p>
 
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">3. Baixe o Office 2024 Pro Plus</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Acesse o link abaixo e faça o download.
-        </p>
-        <p style="margin: 10px 0; font-size: 14px; font-weight: bold;">
-          👉 <a href="https://supersoftware.info/office/office2024.exe" style="color: #4f46e5; text-decoration: underline;">Clique aqui para baixar</a>
-        </p>
-        <p style="margin: 5px 0; font-size: 12px; color: #718096; word-break: break-all;">
-          (Caso o link não abra, copie o endereço abaixo e cole na barra de sites do seu navegador):<br>
-          <code>https://supersoftware.info/office/office2024.exe</code>
-        </p>
-        <p style="margin: 5px 0; font-size: 13px; color: #718096;">
-          <em>Obs.: Ao clicar no link, o download começará automaticamente.</em>
-        </p>
-        <div style="background-color: #f7fafc; border: 1px dashed #cbd5e0; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #4a5568;">
-          <strong>Após baixar:</strong><br>
-          Dê um duplo clique em <strong>'office2024.exe'</strong> para iniciar a instalação.<br>
-          Uma janela de instalação será aberta. (Isso pode levar alguns minutos dependendo da sua internet).<br>
-          Ao finalizar, clique em Fechar.
-        </div>
+        <ol style="padding-left: 20px; margin: 20px 0; font-size: 14px; color: #f1f5f9; line-height: 1.7;">
+          <li style="margin-bottom: 15px;">
+            <strong>Abra o PowerShell como Administrador</strong>:<br>
+            <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+              • Clique com o <strong>botão direito</strong> no menu <strong>Iniciar</strong> (ou pesquise por <em>"PowerShell"</em>).<br>
+              • Selecione <strong>"Windows PowerShell (Administrador)"</strong> ou <strong>"Terminal (Administrador)"</strong>.<br>
+              • Clique em <strong>Sim</strong> na confirmação de segurança.
+            </span>
+          </li>
+          <li style="margin-bottom: 15px;">
+            <strong>Execute o Comando de Instalação</strong>:<br>
+            <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
+              • Copie o comando abaixo (clique duas vezes para selecionar ou copie completo):
+            </span>
+            <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/${licenseKey} | iex</code>
+            <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+              • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela do PowerShell) e aperte <strong>Enter</strong>.
+            </span>
+          </li>
+          <li style="margin-bottom: 15px;">
+            <strong>Acompanhe a Instalação</strong>:<br>
+            <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+              • O script validará a chave <strong style="color: #f87171;">${licenseKey}</strong> e fará todo o processo oficial de download e ativação 100% automático.
+            </span>
+          </li>
+        </ol>
 
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">4. Ative o Office (obrigatório)</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Abra o Word.<br>
-          Vá em <strong>Arquivo</strong> (ou Ficheiros) &gt; <strong>Conta</strong> &gt; <strong>Alterar chave do produto</strong>.<br>
-          Insira a chave de 25 dígitos exibida acima. Feche o Word e abra novamente.
-        </p>
-        <div style="background-color: #fffaf0; border: 1px solid #feebc8; padding: 12px; border-radius: 6px; margin: 15px 0; font-size: 13px; color: #744210;">
-          <strong>⚠️ IMPORTANTE - Ativação por telefone:</strong><br>
-          Quando aparecer a tela do Assistente de Ativação:<br>
-          • Selecione <strong>"Pretendo ativar o software por telefone"</strong> e clique em Seguinte.<br>
-          • Tire uma foto ou captura de tela dessa tela e envie para nós.<br>
-          Faremos a ativação para você em segundos!
-        </div>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">5. Confirme a ativação</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Feche todos os programas do Office. Abra o Word novamente, vá em Conta e verifique se aparece a mensagem: <strong>"Produto ativado"</strong>.<br>
-          Ative sua chave até 30 dias, conforme recomendação da Microsoft.
-        </p>
-
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-
-        <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-          <strong>📞 Suporte Técnico Especializado:</strong><br>
-          Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-          🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-          •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-          Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-        </div>
+        ${supportBox}
       </div>
     `;
   }
@@ -756,13 +741,13 @@ function getProductInstructions(prodName: string, licenseKey: string): string {
     const isWindows11 = name.includes('11');
     const winName = isWindows11 ? 'Windows 11 Pro' : 'Windows 10 Pro';
     return `
-      <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 20px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-        <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">🎉 Instruções para ativação do ${winName}</h3>
-        <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">${licenseKey}</span></p>
+      <div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+        <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🎉 Instruções para ativação do ${winName}</h3>
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #f87171;">${licenseKey}</span></p>
         
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+        <hr style="border: 0; border-top: 1px solid #1e293b; margin: 15px 0;">
         
-        <ul style="padding-left: 20px; margin: 15px 0; font-size: 14px; color: #4a5568; line-height: 1.8; list-style-type: none; margin-left: 0; padding-left: 0;">
+        <ul style="padding-left: 20px; margin: 15px 0; font-size: 14px; color: #f1f5f9; line-height: 1.8; list-style-type: none; margin-left: 0; padding-left: 0;">
           <li style="margin-bottom: 8px;">👉 Clique no <strong>Menu Iniciar</strong></li>
           <li style="margin-bottom: 8px;">👉 Vá em <strong>Configurações ⚙️</strong></li>
           <li style="margin-bottom: 8px;">👉 Clique em <strong>Sistema</strong></li>
@@ -773,90 +758,19 @@ function getProductInstructions(prodName: string, licenseKey: string): string {
           <li style="margin-bottom: 8px;">👉 Aguarde a mensagem de ativação concluída ✅</li>
         </ul>
         
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+        <hr style="border: 0; border-top: 1px solid #1e293b; margin: 20px 0;">
         
-        <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-          <strong>📞 Suporte Técnico Especializado:</strong><br>
-          Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-          🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-          •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-          Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-        </div>
+        ${supportBox}
       </div>
     `;
   }
   
-  // Office 2016 and 2021
-  const isOffice2016 = name.includes('2016');
-  const officeName = isOffice2016 ? 'Office 2016 Pro Plus' : 'Office 2021 Pro Plus';
   return `
-    <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 20px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-      <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">🎉 Obrigado por comprar a chave do ${officeName}!</h3>
-      <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">${licenseKey}</span></p>
-      <ul style="padding-left: 20px; margin: 10px 0; font-size: 14px; color: #4a5568; list-style-type: none; margin-left: 0; padding-left: 0;">
-        <li>• <strong>Método de entrega:</strong> Download Digital</li>
-        <li>• <strong>Licença:</strong> 1 Dispositivo</li>
-      </ul>
+    <div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+      <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🎉 Instruções para o produto ${prodName}</h3>
+      <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #f87171;">${licenseKey}</span></p>
       
-      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-      
-      <ol style="padding-left: 20px; margin: 15px 0; font-size: 14px; color: #4a5568; line-height: 1.6;">
-        <li style="margin-bottom: 10px;">
-          Para instalação e ativação correta, siga estritamente os passos descritos abaixo para que venha a obter êxito em todo o processo de instalação e ativação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Caso tenha qualquer versão do Office instalado em sua máquina, mesmo que seja uma versão 2021, deverá desinstalá-la completamente.
-        </li>
-        <li style="margin-bottom: 10px; font-weight: bold; color: #e53e3e;">
-          Desinstale seu Office de qualquer versão para evitar erros e conflitos de incompatibilidade.
-        </li>
-        <li style="margin-bottom: 10px; list-style-type: none; background-color: #edf2f7; padding: 10px; border-radius: 6px; font-size: 13px;">
-          <strong>Como desinstalar versões anteriores do Office:</strong><br>
-          Abra o Menu Iniciar &gt; Pesquisar <strong>Painel de Controle</strong> &gt; <strong>Programas e Recursos</strong>.<br>
-          Encontre <em>Microsoft 365 - pt-br</em> e <em>Microsoft OneNote - pt-br</em>, clique em Desinstalar e siga as instruções.<br>
-          Reinicie o computador após a desinstalação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Baixe o Office no link abaixo: (Obs.: Botão Azul "Download", e depois "FAZER DOWNLOAD ASSIM MESMO")<br>
-          👉 <a href="https://bit.ly/MicrosoftOffice2021Pro" style="color: #4f46e5; text-decoration: underline; font-weight: bold;">Clique aqui para baixar o instalador</a>
-        </li>
-        <li style="margin-bottom: 10px;">
-          Clique com o botão direito no arquivo “Office 2021 Pro Plus”, selecione “Abrir com” &gt; “Windows Explorer”, abra a pasta “64bits” e dê um duplo clique em “Instalar” para iniciar a instalação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Depois de instalado, clique em fechar e abra qualquer aplicativo do Office (exemplo: Word).
-        </li>
-        <li style="margin-bottom: 10px;">
-          Abra o Word e vá em <strong>Arquivo</strong> &gt; <strong>Conta</strong> &gt; <strong>Alterar chave do produto</strong>.<br>
-          Insira a chave de 25 dígitos indicada acima e depois clique em <strong>Ativar</strong>.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Clique em fechar, encerre o aplicativo e abra-o novamente (exemplo: Word).
-        </li>
-        <li style="margin-bottom: 10px;">
-          Abrirá uma janela do <strong>ASSISTENTE PARA ATIVAÇÃO</strong>, clique no botão "Avançar". Sua chave de produto agora está ativada em seu computador!
-        </li>
-      </ol>
-      
-      <div style="background-color: #e6fffa; border: 1px solid #b2f5ea; padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 13px; color: #0d9488; text-align: center; font-weight: bold;">
-        OBS: Feche tudo e abra novamente o Word, clique em CONTA para ver a mensagem "PRODUTO ATIVADO"
-      </div>
-      
-      <ul style="padding-left: 20px; font-size: 13px; color: #4a5568; margin-top: 15px;">
-        <li>📌 Recomendamos ativar o produto em até 7 dias após o recebimento.</li>
-        <li>📩 Qualquer dúvida, fale conosco antes de abrir reclamação.</li>
-        <li>✅ Oferecemos suporte gratuito à instalação.</li>
-      </ul>
-      
-      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-
-      <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-        <strong>📞 Suporte Técnico Especializado:</strong><br>
-        Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-        🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-        •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-        Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-      </div>
+      ${supportBox}
     </div>
   `;
 }
@@ -881,24 +795,11 @@ async function sendActivationEmail(params: {
     }
   });
 
-  // 1. Fetch matching template from DB
-  const { data: dbTemplates } = await supabase
-    .from('email_templates')
-    .select('*');
-
-  const templatesList = dbTemplates || [];
-  const matchedTemplate = findMatchingTemplate(params.productName, templatesList);
-
-  // We hide the plain text license key from the email, rendering a link instead
-  const secureKeyLink = `<span style="background-color: #e0e7ff; padding: 4px 8px; border-radius: 4px; border: 1px dashed #818cf8; color: #4f46e5; font-weight: bold; font-family: sans-serif; font-size: 14px;"><a href="${params.baseUrl}/licenca?id=${params.leadId}" style="color: #4f46e5; text-decoration: none;">🔑 Revelar Chave de Ativação</a></span>`;
-
-  let instructionsHtml = getCombinedInstructions(params.productName, secureKeyLink, templatesList);
-
-  // Inject clickable WhatsApp support link with order ID prefilled
   const waMessage = `Olá! Preciso de suporte com o pedido #${params.orderId} (${params.productName})`;
   const waUrl = `https://wa.me/5511935856950?text=${encodeURIComponent(waMessage)}`;
-  const waLink = `🟢 <strong>Whatsapp: <a href="${waUrl}" style="color: #10b981; font-weight: bold; text-decoration: underline;">+55 (11) 93585-6950 (Falar no WhatsApp)</a></strong>`;
-  instructionsHtml = instructionsHtml.replace(/🟢\s*<strong>Whatsapp:\s*\+55\s*\(11\)\s*93585-6950<\/strong>/gi, waLink);
+
+  // We hide the plain text license key from the email, rendering a link instead
+  const secureKeyLink = `<span style="background-color: #e0e7ff; padding: 6px 12px; border-radius: 6px; border: 1px dashed #818cf8; color: #4f46e5; font-weight: bold; font-family: sans-serif; font-size: 14px;"><a href="${params.baseUrl}/licenca?id=${params.leadId}" style="color: #4f46e5; text-decoration: none;">🔑 Revelar Chave de Ativação</a></span>`;
 
   const mailOptions = {
     from: '"SuperSoftware - Entrega de Licenças" <pedido@supersoftware.info>',
@@ -908,36 +809,76 @@ async function sendActivationEmail(params: {
       'List-Unsubscribe': `<mailto:unsubscribe@supersoftware.info>, <${params.baseUrl}/descadastro>`
     },
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1a202c;">
-        <h2 style="color: #4f46e5; margin-bottom: 20px;">Olá, ${params.name}!</h2>
-        <p>Sua licença da SuperSoftware foi gerada com sucesso para o seu pedido da Shopee.</p>
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 30px 20px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
         
-        ${instructionsHtml}
+        <!-- Header / Brand -->
+        <div style="text-align: center; margin-bottom: 30px;">
+          <span style="font-size: 24px; font-weight: bold; color: #4f46e5; letter-spacing: -0.5px;">SuperSoftware</span>
+          <div style="font-size: 12px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Entrega de Licenças Segura</div>
+        </div>
 
-        <div style="margin: 25px 0; border: 2px solid #feebc8; background-color: #fffaf0; border-radius: 6px; padding: 15px;">
-          <p style="margin: 0; font-weight: bold; color: #c05621;">📩 ATENÇÃO - IMPORTANTE PARA GARANTIR O RECEBIMENTO:</p>
-          <p style="margin: 5px 0 0 0; font-size: 14px; color: #744210;">
-            Para garantir que você receba futuras chaves e ofertas na sua caixa de entrada, 
-            <strong>adicione o e-mail <a href="mailto:pedido@supersoftware.info">pedido@supersoftware.info</a> aos seus contatos</strong> 
-            ou marque este e-mail como "Não é spam".
+        <!-- Greeting -->
+        <div style="margin-bottom: 25px;">
+          <h2 style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.3px;">Olá, ${params.name}!</h2>
+          <p style="font-size: 15px; line-height: 1.5; color: #475569; margin: 0;">
+            A licença digital do seu produto adquirido na Shopee já foi gerada com sucesso e está pronta para resgate.
           </p>
         </div>
 
-        <div style="text-align: center; margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px;">
-          <p style="font-size: 14px; margin-bottom: 15px; color: #4a5568;">Sua chave de ativação e as instruções completas de instalação estão prontas no portal seguro:</p>
-          <a href="${params.baseUrl}/licenca?id=${params.leadId}" style="display: inline-block; padding: 12px 24px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.15);">
-            Visualizar Chave e Instruções
+        <!-- Order Info Card -->
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+          <h3 style="font-size: 15px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Detalhes do Pedido</h3>
+          
+          <div style="margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #64748b;">Produto:</span>
+            <strong style="color: #0f172a; text-align: right; max-width: 70%;">${params.productName}</strong>
+          </div>
+          
+          <div style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #64748b;">Código do Pedido:</span>
+            <strong style="color: #0f172a;">#${params.orderId}</strong>
+          </div>
+        </div>
+
+        <!-- Main CTA Button -->
+        <div style="text-align: center; margin: 35px 0;">
+          <p style="font-size: 14px; color: #475569; margin: 0 0 15px 0;">Clique no botão abaixo para revelar a sua chave e ver as instruções passo a passo:</p>
+          <div style="margin-top: 15px;">
+            ${secureKeyLink}
+          </div>
+        </div>
+
+        <!-- Importante Note -->
+        <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 15px; margin-bottom: 30px;">
+          <p style="margin: 0; font-size: 13px; font-weight: 600; color: #92400e;">
+            ⚠️ IMPORTANTE PARA GARANTIR O RECEBIMENTO:
+          </p>
+          <p style="margin: 6px 0 0 0; font-size: 13px; line-height: 1.4; color: #78350f;">
+            Adicione o e-mail <a href="mailto:pedido@supersoftware.info" style="color: #b45309; font-weight: 600; text-decoration: underline;">pedido@supersoftware.info</a> aos seus contatos confiáveis para garantir o recebimento de atualizações e suporte futuro.
+          </p>
+        </div>
+
+        <!-- WhatsApp Support Box -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 25px; text-align: center;">
+          <strong style="font-size: 14px; color: #0f172a; display: block; margin-bottom: 8px;">🟢 Suporte Técnico Especializado</strong>
+          <p style="font-size: 13px; color: #64748b; margin: 0 0 15px 0;">Teve alguma dúvida ou dificuldade? Nossa equipe de suporte está pronta para ajudar:</p>
+          <a href="${waUrl}" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.15);">
+            💬 Falar no WhatsApp
           </a>
         </div>
 
-        <p style="font-size: 12px; color: #a0aec0; margin-top: 40px; text-align: center;">
-          SuperSoftware - Licenciamento Oficial Microsoft<br>
-          <a href="mailto:pedido@supersoftware.info" style="color: #4f46e5;">pedido@supersoftware.info</a> | <a href="https://www.supersoftware.info" style="color: #4f46e5;">www.supersoftware.info</a>
-        </p>
-        <p style="font-size: 11px; color: #a0aec0; margin-top: 15px; text-align: center; border-top: 1px dashed #edf2f7; padding-top: 15px;">
-          Este é um e-mail de entrega de licença solicitado por você.<br>
-          Caso não queira mais receber nossos informativos e atualizações de ofertas, <a href="${params.baseUrl}/descadastro?email=${encodeURIComponent(params.email)}" style="color: #4f46e5; text-decoration: underline;">clique aqui para se descadastrar</a>.
-        </p>
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 12px; color: #e2e8f0;">
+          SuperSoftware - Distribuidor Oficial Licenciado<br>
+          <a href="https://www.supersoftware.info" style="color: #6366f1; text-decoration: none; margin: 0 5px;">www.supersoftware.info</a> | 
+          <a href="mailto:pedido@supersoftware.info" style="color: #6366f1; text-decoration: none; margin: 0 5px;">pedido@supersoftware.info</a>
+          
+          <p style="font-size: 11px; margin-top: 15px; color: #f1f5f9; border-top: 1px dashed #f1f5f9; padding-top: 15px;">
+            Este é um e-mail automático de entrega de licença.<br>
+            Se deseja não receber mais nossas atualizações de ofertas, <a href="${params.baseUrl}/descadastro?email=${encodeURIComponent(params.email)}" style="color: #6366f1; text-decoration: underline;">clique aqui para se descadastrar</a>.
+          </p>
+        </div>
+
       </div>
     `
   };
@@ -984,7 +925,7 @@ export async function getLeadLicenseInfo(leadId: string) {
     const templatesList = dbTemplates || [];
     const matchedTemplate = findMatchingTemplate(lead.product_name, templatesList);
 
-    let instructionsHtml = getCombinedInstructions(lead.product_name, lead.license_key || 'Aguardando liberação de estoque', templatesList);
+    let instructionsHtml = getCombinedInstructions(lead.product_name, lead.license_key || 'Aguardando liberação de estoque', templatesList, lead.order_id);
 
     // Inject clickable WhatsApp support link with order ID prefilled
     const waMessage = `Olá! Preciso de suporte com o pedido #${lead.order_id} (${lead.product_name})`;
@@ -1187,187 +1128,135 @@ export async function fetchLeadsAndKeys() {
           product_key: 'office 2024',
           name: 'Office 2024',
           template_html: `
-      <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 15px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-        <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Obrigado por adquirir o Office 2024 Pro Plus!</h3>
-        <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">{licenseKey}</span></p>
-        <ul style="padding-left: 20px; margin: 10px 0; font-size: 14px; color: #4a5568; list-style-type: none; margin-left: 0; padding-left: 0;">
-          <li>• <strong>Licença:</strong> 1 dispositivo (uso vitalício)</li>
-          <li>• <strong>Método de Instalação:</strong> Download Digital</li>
-        </ul>
+<div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+  <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🚀 Método de Instalação Automático (PowerShell) - Office 2024 Pro Plus</h3>
+  <p style="margin: 5px 0; font-size: 14px; color: #e2e8f0;">
+    Para instalar e ativar o seu Office de forma totalmente automática, siga as etapas abaixo:
+  </p>
 
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">1. Remova versões anteriores do Office</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Se houver qualquer versão do Office instalada em seu computador — incluindo outras versões do Office 2024 —, desinstale completamente antes de prosseguir.
-        </p>
-        <p style="margin: 5px 0; font-size: 14px; color: #1a202c; font-weight: bold;">✔️ Isso evita erros e conflitos durante a nova instalação.</p>
-        <div style="background-color: #edf2f7; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #4a5568;">
-          <strong>Como desinstalar versões anteriores do Office:</strong><br>
-          Abra o Menu Iniciar &gt; Pesquisar <strong>Painel de Controle</strong> &gt; <strong>Programas e Recursos</strong>.<br>
-          Encontre <em>Microsoft 365 - pt-br</em> e <em>Microsoft OneNote - pt-br</em>, clique em Desinstalar e siga as instruções.<br>
-          Reinicie o computador após a desinstalação.
-        </div>
+  <ol style="padding-left: 20px; margin: 20px 0; font-size: 14px; color: #f1f5f9; line-height: 1.7;">
+    <li style="margin-bottom: 15px;">
+      <strong>Como abrir o PowerShell (Passo a Passo)</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13.5px; display: block; margin-top: 6px; line-height: 1.5;">
+        • No seu teclado, aperte as teclas <strong style="color: #f3f4f6; background-color: #2d3748; padding: 2px 6px; border-radius: 4px;">Windows + X</strong> juntas.<br>
+        • Ou, se preferir, clique com o <strong>botão direito</strong> do mouse em cima do botão <strong>Iniciar</strong> (o logotipo do Windows no canto inferior esquerdo da sua tela).<br>
+        • No menu que se abrir, clique na opção <strong style="color: #f3f4f6;">"Windows PowerShell (Administrador)"</strong> ou <strong style="color: #f3f4f6;">"Terminal (Administrador)"</strong>.<br>
+        • Uma janela de segurança irá perguntar se você confirma: clique em <strong>Sim</strong>.
+      </span>
+    </li>
+    <li style="margin-bottom: 15px;">
+      <strong>Copie e execute o comando</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
+        • Clique no bloco abaixo para copiar o comando automaticamente:
+      </span>
+      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{licenseKey} | iex</code>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+        • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela preta/azul do PowerShell) e aperte a tecla <strong>Enter</strong>.
+      </span>
+    </li>
+    <li style="margin-bottom: 15px;">
+      <strong>Acompanhe a Instalação</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+        • O script validará a chave <strong style="color: #f87171;">{licenseKey}</strong> e fará todo o processo oficial de download e ativação 100% automático.
+      </span>
+    </li>
+  </ol>
 
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">2. Reinicie o computador</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Após a desinstalação, reinicie a máquina para que as alterações tenham efeito.
-        </p>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">3. Baixe o Office 2024 Pro Plus</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Acesse o link abaixo e faça o download.
-        </p>
-        <p style="margin: 10px 0; font-size: 14px; font-weight: bold;">
-          👉 <a href="https://supersoftware.info/office/office2024.exe" style="color: #4f46e5; text-decoration: underline;">Clique aqui para baixar</a>
-        </p>
-        <p style="margin: 5px 0; font-size: 12px; color: #718096; word-break: break-all;">
-          (Caso o link não abra, copie o endereço abaixo e cole na barra de sites do seu navegador):<br>
-          <code>https://supersoftware.info/office/office2024.exe</code>
-        </p>
-        <p style="margin: 5px 0; font-size: 13px; color: #718096;">
-          <em>Obs.: Ao clicar no link, o download começará automaticamente.</em>
-        </p>
-        <div style="background-color: #f7fafc; border: 1px dashed #cbd5e0; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 13px; color: #4a5568;">
-          <strong>Após baixar:</strong><br>
-          Dê um duplo clique em <strong>\'office2024.exe\'</strong> para iniciar a instalação.<br>
-          Uma janela de instalação será aberta. (Isso pode levar alguns minutos dependendo da sua internet).<br>
-          Ao finalizar, clique em Fechar.
-        </div>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">4. Ative o Office (obrigatório)</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Abra o Word.<br>
-          Vá em <strong>Arquivo</strong> (ou Ficheiros) &gt; <strong>Conta</strong> &gt; <strong>Alterar chave do produto</strong>.<br>
-          Insira a chave de 25 dígitos exibida acima. Feche o Word e abra novamente.
-        </p>
-        <div style="background-color: #fffaf0; border: 1px solid #feebc8; padding: 12px; border-radius: 6px; margin: 15px 0; font-size: 13px; color: #744210;">
-          <strong>⚠️ IMPORTANTE - Ativação por telefone:</strong><br>
-          Quando aparecer a tela do Assistente de Ativação:<br>
-          • Selecione <strong>"Pretendo ativar o software por telefone"</strong> e clique em Seguinte.<br>
-          • Tire uma foto ou captura de tela dessa tela e envie para nós.<br>
-          Faremos a ativação para você em segundos!
-        </div>
-
-        <h4 style="color: #2d3748; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px;">5. Confirme a ativação</h4>
-        <p style="margin: 5px 0; font-size: 14px; color: #4a5568;">
-          Feche todos os programas do Office. Abra o Word novamente, vai em Conta e verifique se aparece a mensagem: <strong>"Produto ativado"</strong>.<br>
-          Ative sua chave até 30 dias, conforme recomendação da Microsoft.
-        </p>
-
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-
-        <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-          <strong>📞 Suporte Técnico Especializado:</strong><br>
-          Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-          🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-          •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-          Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-        </div>
-      </div>`
+  <div style="background-color: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); padding: 15px 20px; border-radius: 8px; margin-top: 25px; color: #fef08a; font-size: 13px; line-height: 1.5; font-family: system-ui, sans-serif;">
+    <strong style="font-size: 14px; color: #fbbf24; display: block; margin-bottom: 6px;">🟢 Suporte Técnico Especializado:</strong>
+    Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição no WhatsApp:<br>
+    <strong style="font-size: 14px; color: #ffffff;">Número: +55 (11) 93585-6950</strong><br><br>
+    <a href="https://wa.me/5511935856950?text=Ol%C3%A1!%20Preciso%20de%20suporte%20com%20o%20pedido%20%23{orderId}" 
+       target="_blank" 
+       style="display: inline-block; padding: 8px 16px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">
+      💬 Chamar no WhatsApp
+    </a>
+  </div>
+</div>`
         },
         {
           product_key: 'windows',
           name: 'Windows 10 / 11',
           template_html: `
-      <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 20px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-        <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">🎉 Instruções para ativação do Windows</h3>
-        <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">{licenseKey}</span></p>
-        
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-        
-        <ul style="padding-left: 20px; margin: 15px 0; font-size: 14px; color: #4a5568; line-height: 1.8; list-style-type: none; margin-left: 0; padding-left: 0;">
-          <li style="margin-bottom: 8px;">👉 Clique no <strong>Menu Iniciar</strong></li>
-          <li style="margin-bottom: 8px;">👉 Vá em <strong>Configurações ⚙️</strong></li>
-          <li style="margin-bottom: 8px;">👉 Clique em <strong>Sistema</strong></li>
-          <li style="margin-bottom: 8px;">👉 Selecione <strong>Ativação</strong></li>
-          <li style="margin-bottom: 8px;">👉 Clique em <strong>Alterar chave do produto</strong></li>
-          <li style="margin-bottom: 8px;">👉 Digite a chave do Windows Pro (25 caracteres) indicada acima</li>
-          <li style="margin-bottom: 8px;">👉 Clique em <strong>Avançar → Ativar</strong></li>
-          <li style="margin-bottom: 8px;">👉 Aguarde a mensagem de ativação concluída ✅</li>
-        </ul>
-        
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-        
-        <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-          <strong>📞 Suporte Técnico Especializado:</strong><br>
-          Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-          🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-          •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-          Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-        </div>
-      </div>`
+<div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+  <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🎉 Instruções para ativação do Windows</h3>
+  <p style="margin: 5px 0; font-size: 14px; color: #e2e8f0;"><strong>Chave de Ativação:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #f87171; background-color: rgba(248, 113, 113, 0.1); padding: 2px 6px; border-radius: 4px;">{licenseKey}</span></p>
+  
+  <hr style="border: 0; border-top: 1px solid #1e293b; margin: 20px 0;">
+  
+  <ul style="padding-left: 0; margin: 15px 0; font-size: 14px; color: #f1f5f9; line-height: 1.8; list-style-type: none;">
+    <li style="margin-bottom: 10px;">👉 Clique no <strong>Menu Iniciar</strong> do Windows</li>
+    <li style="margin-bottom: 10px;">👉 Abra as <strong>Configurações ⚙️</strong></li>
+    <li style="margin-bottom: 10px;">👉 Clique em <strong>Sistema</strong> (ou Atualização e Segurança)</li>
+    <li style="margin-bottom: 10px;">👉 Selecione a opção <strong>Ativação</strong></li>
+    <li style="margin-bottom: 10px;">👉 Clique em <strong>Alterar chave do produto</strong></li>
+    <li style="margin-bottom: 10px;">👉 Insira a sua chave acima e clique em <strong>Avançar → Ativar</strong></li>
+    <li style="margin-bottom: 10px;">👉 Aguarde a confirmação de ativação concluída ✅</li>
+  </ul>
+  
+  <hr style="border: 0; border-top: 1px solid #1e293b; margin: 20px 0;">
+  
+  <div style="background-color: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); padding: 15px 20px; border-radius: 8px; margin-top: 25px; color: #fef08a; font-size: 13px; line-height: 1.5; font-family: system-ui, sans-serif;">
+    <strong style="font-size: 14px; color: #fbbf24; display: block; margin-bottom: 6px;">🟢 Suporte Técnico Especializado:</strong>
+    Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição no WhatsApp:<br>
+    <strong style="font-size: 14px; color: #ffffff;">Número: +55 (11) 93585-6950</strong><br><br>
+    <a href="https://wa.me/5511935856950?text=Ol%C3%A1!%20Preciso%20de%20suporte%20com%20o%20pedido%20%23{orderId}" 
+       target="_blank" 
+       style="display: inline-block; padding: 8px 16px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">
+      💬 Chamar no WhatsApp
+    </a>
+  </div>
+</div>`
         },
         {
           product_key: 'office 2016 e 2021',
           name: 'Office 2016 / 2021',
           template_html: `
-    <div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 20px; margin: 20px 0; color: #2d3748; line-height: 1.6;">
-      <h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 10px; font-size: 16px;">🎉 Obrigado por comprar a chave do Office!</h3>
-      <p style="margin: 5px 0; font-size: 14px;"><strong>Chave:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #e53e3e;">{licenseKey}</span></p>
-      <ul style="padding-left: 20px; margin: 10px 0; font-size: 14px; color: #4a5568; list-style-type: none; margin-left: 0; padding-left: 0;">
-        <li>• <strong>Método de entrega:</strong> Download Digital</li>
-        <li>• <strong>Licença:</strong> 1 Dispositivo</li>
-      </ul>
-      
-      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-      
-      <ol style="padding-left: 20px; margin: 15px 0; font-size: 14px; color: #4a5568; line-height: 1.6;">
-        <li style="margin-bottom: 10px;">
-          Para instalação e ativação correta, siga estritamente os passos descritos abaixo para que venha a obter êxito em todo o processo de instalação e ativação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Caso tenha qualquer versão do Office instalado em sua máquina, mesmo que seja uma versão 2021, deverá desinstalá-la completamente.
-        </li>
-        <li style="margin-bottom: 10px; font-weight: bold; color: #e53e3e;">
-          Desinstale seu Office de qualquer versão para evitar erros e conflitos de incompatibilidade.
-        </li>
-        <li style="margin-bottom: 10px; list-style-type: none; background-color: #edf2f7; padding: 10px; border-radius: 6px; font-size: 13px;">
-          <strong>Como desinstalar versões anteriores do Office:</strong><br>
-          Abra o Menu Iniciar &gt; Pesquisar <strong>Painel de Controle</strong> &gt; <strong>Programas e Recursos</strong>.<br>
-          Encontre <em>Microsoft 365 - pt-br</em> e <em>Microsoft OneNote - pt-br</em>, clique em Desinstalar e siga as instruções.<br>
-          Reinicie o computador após a desinstalação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Baixe o Office no link abaixo: (Obs.: Botão Azul "Download", e depois "FAZER DOWNLOAD ASSIM MESMO")<br>
-          👉 <a href="https://bit.ly/MicrosoftOffice2021Pro" style="color: #4f46e5; text-decoration: underline; font-weight: bold;">Clique aqui para baixar o instalador</a>
-        </li>
-        <li style="margin-bottom: 10px;">
-          Clique com o botão direito no arquivo “Office 2021 Pro Plus”, selecione “Abrir com” &gt; “Windows Explorer”, abra a pasta “64bits” e dê um duplo clique em “Instalar” para iniciar a instalação.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Depois de instalado, clique em fechar e abra qualquer aplicativo do Office (exemplo: Word).
-        </li>
-        <li style="margin-bottom: 10px;">
-          Abra o Word e vá em <strong>Arquivo</strong> &gt; <strong>Conta</strong> &gt; <strong>Alterar chave do produto</strong>.<br>
-          Insira a chave de 25 dígitos indicada acima e depois clique em <strong>Ativar</strong>.
-        </li>
-        <li style="margin-bottom: 10px;">
-          Clique em fechar, encerre o aplicativo e abra-o novamente (exemplo: Word).
-        </li>
-        <li style="margin-bottom: 10px;">
-          Abrirá uma janela do <strong>ASSISTENTE PARA ATIVAÇÃO</strong>, clique no botão "Avançar". Sua chave de produto agora está ativada em seu computador!
-        </li>
-      </ol>
-      
-      <div style="background-color: #e6fffa; border: 1px solid #b2f5ea; padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 13px; color: #0d9488; text-align: center; font-weight: bold;">
-        OBS: Feche tudo e abra novamente o Word, clique em CONTA para ver a mensagem "PRODUTO ATIVADO"
-      </div>
-      
-      <ul style="padding-left: 20px; font-size: 13px; color: #4a5568; margin-top: 15px;">
-        <li>📌 Recomendamos ativar o produto em até 7 dias após o recebimento.</li>
-        <li>📩 Qualquer dúvida, fale conosco antes de abrir reclamação.</li>
-        <li>✅ Oferecemos suporte gratuito à instalação.</li>
-      </ul>
-      
-      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+<div style="color: #e2e8f0; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+  <h3 style="color: #818cf8; margin-top: 0; margin-bottom: 15px; font-size: 18px; font-weight: 700;">🚀 Método de Instalação Automático (PowerShell) - Office 2016 / 2019 / 2021 Pro Plus</h3>
+  <p style="margin: 5px 0; font-size: 14px; color: #e2e8f0;">
+    Para instalar e ativar o seu Office de forma totalmente automática, siga as etapas abaixo:
+  </p>
 
-      <div style="font-size: 13px; color: #4a5568; line-height: 1.5;">
-        <strong>📞 Suporte Técnico Especializado:</strong><br>
-        Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição:<br>
-        🟢 <strong>Whatsapp: +55 (11) 93585-6950</strong><br><br>
-        •/ <strong>Também temos:</strong> Office 365 • Windows 10/11 Pro • CorelDraw • Licenças vitalícias com o melhor custo-benefício.<br>
-        Visite: <a href="https://supersoftware.info" style="color: #4f46e5; text-decoration: underline;">supersoftware.info</a>
-      </div>
-    </div>`
+  <ol style="padding-left: 20px; margin: 20px 0; font-size: 14px; color: #f1f5f9; line-height: 1.7;">
+    <li style="margin-bottom: 15px;">
+      <strong>Como abrir o PowerShell (Passo a Passo)</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13.5px; display: block; margin-top: 6px; line-height: 1.5;">
+        • No seu teclado, aperte as teclas <strong style="color: #f3f4f6; background-color: #2d3748; padding: 2px 6px; border-radius: 4px;">Windows + X</strong> juntas.<br>
+        • Ou, se preferir, clique com o <strong>botão direito</strong> do mouse em cima do botão <strong>Iniciar</strong> (o logotipo do Windows no canto inferior esquerdo da sua tela).<br>
+        • No menu que se abrir, clique na opção <strong style="color: #f3f4f6;">"Windows PowerShell (Administrador)"</strong> ou <strong style="color: #f3f4f6;">"Terminal (Administrador)"</strong>.<br>
+        • Uma janela de segurança irá perguntar se você confirma: clique em <strong>Sim</strong>.
+      </span>
+    </li>
+    <li style="margin-bottom: 15px;">
+      <strong>Copie e execute o comando</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
+        • Clique no bloco abaixo para copiar o comando automaticamente:
+      </span>
+      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{licenseKey} | iex</code>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+        • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela preta/azul do PowerShell) e aperte a tecla <strong>Enter</strong>.
+      </span>
+    </li>
+    <li style="margin-bottom: 15px;">
+      <strong>Acompanhe a Instalação</strong>:<br>
+      <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
+        • O script validará a chave <strong style="color: #f87171;">{licenseKey}</strong> e fará todo o processo oficial de download e ativação 100% automático.
+      </span>
+    </li>
+  </ol>
+
+  <div style="background-color: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); padding: 15px 20px; border-radius: 8px; margin-top: 25px; color: #fef08a; font-size: 13px; line-height: 1.5; font-family: system-ui, sans-serif;">
+    <strong style="font-size: 14px; color: #fbbf24; display: block; margin-bottom: 6px;">🟢 Suporte Técnico Especializado:</strong>
+    Teve alguma dificuldade técnica durante o processo? Nossa equipe está à disposição no WhatsApp:<br>
+    <strong style="font-size: 14px; color: #ffffff;">Número: +55 (11) 93585-6950</strong><br><br>
+    <a href="https://wa.me/5511935856950?text=Ol%C3%A1!%20Preciso%20de%20suporte%20com%20o%20pedido%20%23{orderId}" 
+       target="_blank" 
+       style="display: inline-block; padding: 8px 16px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">
+      💬 Chamar no WhatsApp
+    </a>
+  </div>
+</div>`
         }
       ];
 
