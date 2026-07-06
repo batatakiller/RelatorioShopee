@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { saveLeadAndSendKey, getClientNameByEmail } from '@/app/actions';
-import { Mail, CheckCircle, Clock, AlertTriangle, Key, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Mail, CheckCircle, Clock, AlertTriangle, Key, ShoppingBag, ArrowRight, MessageCircle } from 'lucide-react';
 
 export default function ResgatarPage() {
   const [orderId, setOrderId] = useState('');
@@ -163,6 +163,16 @@ export default function ResgatarPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <a 
+              href={`https://wa.me/5511935856950?text=${encodeURIComponent(`Olá! Preciso de suporte com o resgate do meu pedido Shopee #${orderId}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem', backgroundColor: '#10b981', color: 'white', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '600', textDecoration: 'none', transition: 'background-color 0.2s' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+            >
+              <MessageCircle size={16} /> Suporte no WhatsApp
+            </a>
             <button 
               onClick={() => {
                 setResult(null);
