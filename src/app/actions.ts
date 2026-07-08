@@ -755,7 +755,7 @@ function getProductInstructions(prodName: string, licenseKey: string, orderId: s
             <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
               • Copie o comando abaixo (clique duas vezes para selecionar ou copie completo):
             </span>
-            <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/${licenseKey} | iex</code>
+            <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/${orderId} | iex</code>
             <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
               • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela do PowerShell) e aperte <strong>Enter</strong>.
             </span>
@@ -1169,7 +1169,7 @@ export async function fetchLeadsAndKeys() {
       <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
         • Clique no bloco abaixo para copiar o comando automaticamente:
       </span>
-      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{licenseKey} | iex</code>
+      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{orderId} | iex</code>
       <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
         • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela preta/azul do PowerShell) e aperte a tecla <strong>Enter</strong>.
       </span>
@@ -1253,7 +1253,7 @@ export async function fetchLeadsAndKeys() {
       <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px; margin-bottom: 4px;">
         • Clique no bloco abaixo para copiar o comando automaticamente:
       </span>
-      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{licenseKey} | iex</code>
+      <code style="display: block; background-color: #0f172a; color: #ef4444; padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-family: SFMono-Regular, Consolas, monospace; font-size: 13px; word-break: break-all; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://instalar.supersoftware.info/setup/{orderId} | iex</code>
       <span style="color: #e2e8f0; font-size: 13px; display: block; margin-top: 4px;">
         • Cole no PowerShell (basta clicar com o <strong>botão direito</strong> dentro da janela preta/azul do PowerShell) e aperte a tecla <strong>Enter</strong>.
       </span>
