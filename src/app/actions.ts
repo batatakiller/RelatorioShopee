@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 import { Order, AdData, ProductCost, AdsBillingRecord, AdsBillingDaily, SupplierPayment } from '@/utils/profitCalculator';
 import { headers } from 'next/headers';
 import { ImapFlow } from 'imapflow';
-import nodemailer from 'nodemailer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -814,6 +813,41 @@ function getProductInstructions(prodName: string, licenseKey: string, orderId: s
   `;
 }
 
+// Envio transacional via Resend (IP/reputação dedicados — substitui o SMTP
+// compartilhado da Hostinger, que vive rate-limited pela Microsoft).
+async function sendEmailViaResend(mail: {
+  from: string;
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  headers?: Record<string, string>;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY não configurada');
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: mail.from,
+      to: [mail.to],
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      headers: mail.headers
+    })
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Resend falhou (${res.status}): ${body}`);
+  }
+}
+
 async function sendActivationEmail(params: {
   email: string;
   name: string;
@@ -823,17 +857,6 @@ async function sendActivationEmail(params: {
   leadId: string;
   baseUrl: string;
 }) {
-  const nodemailer = require('nodemailer');
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: 'pedido@supersoftware.info',
-      pass: 'Batata2025$'
-    }
-  });
-
   const waMessage = `Olá! Preciso de suporte com o pedido #${params.orderId} (${params.productName})`;
   const waUrl = `https://wa.me/5511935856950?text=${encodeURIComponent(waMessage)}`;
 
@@ -903,7 +926,7 @@ async function sendActivationEmail(params: {
     `
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendEmailViaResend(mailOptions);
 }
 
 export async function getLeadLicenseInfo(leadId: string) {
@@ -972,17 +995,6 @@ export async function getLeadLicenseInfo(leadId: string) {
 }
 
 async function sendAdminAlertEmail(productName: string, orderId: string) {
-  const nodemailer = require('nodemailer');
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: 'pedido@supersoftware.info',
-      pass: 'Batata2025$'
-    }
-  });
-
   const mailOptions = {
     from: '"Alerta de Estoque - SuperSoftware" <pedido@supersoftware.info>',
     to: 'pedido@supersoftware.info',
@@ -990,7 +1002,7 @@ async function sendAdminAlertEmail(productName: string, orderId: string) {
     text: `Olá Administrador,\n\nO cliente do pedido #${orderId} tentou resgatar uma chave para o produto "${productName}", mas o estoque de chaves está esgotado.\n\nPor favor, insira novas chaves no painel administrativo e aprove o lead correspondente para disparar o envio.\n\nAtenciosamente,\nSistema SuperSoftware`
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendEmailViaResend(mailOptions);
 }
 
 export async function approveLead(leadId: string) {
