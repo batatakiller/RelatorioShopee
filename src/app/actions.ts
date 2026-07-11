@@ -474,7 +474,7 @@ export async function saveLeadAndSendKey(
     let matchedProductName = selectedProduct || '';
     let isOrderFound = false;
 
-    if (order && !orderError) {
+    if (order && !orderError && order.product_name && order.product_name !== 'Produto não identificado') {
       matchedProductName = order.product_name;
       isOrderFound = true;
     }
