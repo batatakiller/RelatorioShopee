@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { saveLeadAndSendKey, getClientNameByEmail } from '@/app/actions';
 import { Mail, CheckCircle, Clock, AlertTriangle, Key, ShoppingBag, ArrowRight, MessageCircle } from 'lucide-react';
 
@@ -15,10 +15,16 @@ export default function ResgatarPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [notFoundAttempts, setNotFoundAttempts] = useState(0);
   const [result, setResult] = useState<{
-    status: 'sent' | 'pending_verification' | 'pending_key';
+    status: 'sent' | 'pending_verification' | 'pending_key' | 'recebido';
     productName: string;
     keySent?: string | null;
   } | null>(null);
+
+  // Link pré-preenchido (vendas WhatsApp): /?pedido=WA260710XXXX
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('pedido');
+    if (p) setOrderId(p.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  }, []);
 
   const handleEmailBlur = async () => {
     const trimmedEmail = email.trim();
@@ -98,7 +104,7 @@ export default function ResgatarPage() {
           setSelectedProduct('Windows 11 Pro'); // default choice
         } else {
           setResult({
-            status: res.status as 'sent' | 'pending_verification' | 'pending_key',
+            status: res.status as 'sent' | 'pending_verification' | 'pending_key' | 'recebido',
             productName: res.lead.product_name,
             keySent: res.lead.license_key
           });
@@ -122,8 +128,8 @@ export default function ResgatarPage() {
     'Office 2024 Professional Plus'
   ];
 
-  // Success view (Key sent immediately)
-  if (result?.status === 'sent') {
+  // Success view (Key sent immediately or received)
+  if (result?.status === 'sent' || result?.status === 'recebido') {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '1rem', backgroundColor: '#0f111a' }}>
         <div style={{ maxWidth: '500px', width: '100%', backgroundColor: '#1e2130', border: '1px solid #2d3748', borderRadius: '12px', padding: '2.5rem', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>

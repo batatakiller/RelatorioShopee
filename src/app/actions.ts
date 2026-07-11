@@ -592,6 +592,57 @@ export async function saveLeadAndSendKey(
   }
 }
 
+// Cria um "pedido" manual para vendas fora da Shopee (WhatsApp): insere na
+// shopee_orders com ID WA+data+sufixo e devolve o link do resgatar pré-preenchido.
+// O cliente entra no link, informa nome/e-mail e o fluxo normal entrega a chave.
+export async function createWhatsAppOrder(productName: string) {
+  try {
+    const clean = (productName || '').trim();
+    if (!clean) return { success: false, message: 'Informe o produto.' };
+
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+
+    // WA + yymmdd + 4 aleatórios = 12 caracteres (formato aceito pelo resgatar)
+    let orderId = '';
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
+      const rand = Array.from({ length: 4 }, () =>
+        'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
+      ).join('');
+      const candidato = `WA${yy}${mm}${dd}${rand}`;
+      const { data: existente } = await supabase
+        .from('shopee_orders')
+        .select('order_id')
+        .eq('order_id', candidato)
+        .maybeSingle();
+      if (!existente) { orderId = candidato; break; }
+    }
+    if (!orderId) return { success: false, message: 'Não foi possível gerar um ID único. Tente novamente.' };
+
+    const { error } = await supabase.from('shopee_orders').insert([{
+      order_id: orderId,
+      order_date: now.toISOString(),
+      product_name: clean,
+      quantity: 1,
+      total_revenue: 0,
+      status: 'Venda WhatsApp'
+    }]);
+    if (error) throw error;
+
+    return {
+      success: true,
+      orderId,
+      link: `https://resgatar.supersoftware.info/?pedido=${orderId}`
+    };
+  } catch (error) {
+    console.error('Error in createWhatsAppOrder:', error);
+    const err = error as Error;
+    return { success: false, message: err.message || 'Erro ao criar pedido manual.' };
+  }
+}
+
 function findMatchingTemplate(productName: string, templates: any[]): any | undefined {
   const prodLower = productName.toLowerCase();
   

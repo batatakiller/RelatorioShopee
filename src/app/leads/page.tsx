@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  fetchLeadsAndKeys, 
-  addLicenseKeys, 
-  approveLead, 
-  deleteLead, 
-  deleteLicenseKey, 
+import {
+  fetchLeadsAndKeys,
+  addLicenseKeys,
+  approveLead,
+  deleteLead,
+  deleteLicenseKey,
   checkEmailReplies,
-  saveEmailTemplate
+  saveEmailTemplate,
+  createWhatsAppOrder
 } from '@/app/actions';
 import { 
   Mail, 
@@ -24,7 +25,9 @@ import {
   CheckCircle,
   Inbox,
   FileText,
-  Edit3
+  Edit3,
+  MessageCircle,
+  Copy
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -75,6 +78,13 @@ export default function LeadsDashboard() {
   const [newKeysText, setNewKeysText] = useState('');
   const [keySearch, setKeySearch] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
+
+  // Pedido manual (venda WhatsApp)
+  const [showWaPanel, setShowWaPanel] = useState(false);
+  const [waProduct, setWaProduct] = useState('Office 2024 Professional Plus');
+  const [waLoading, setWaLoading] = useState(false);
+  const [waResult, setWaResult] = useState<{ orderId: string; link: string } | null>(null);
+  const [waCopied, setWaCopied] = useState(false);
 
   // Template Editor States
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
@@ -302,7 +312,28 @@ export default function LeadsDashboard() {
         </div>
 
         {activeTab === 'leads' && (
-          <button 
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => { setShowWaPanel(!showWaPanel); setWaResult(null); setWaCopied(false); }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.625rem 1.25rem',
+              backgroundColor: showWaPanel ? '#1e2130' : '#10b981',
+              color: 'white',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              border: 'none',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            <MessageCircle size={16} />
+            {showWaPanel ? 'Fechar' : 'Pedido WhatsApp'}
+          </button>
+          <button
             onClick={handleSyncIMAP}
             disabled={syncingIMAP}
             style={{ 
@@ -323,8 +354,77 @@ export default function LeadsDashboard() {
             <RefreshCw size={16} className={syncingIMAP ? 'animate-spin' : ''} />
             {syncingIMAP ? 'Sincronizando IMAP...' : 'Sincronizar Respostas (IMAP)'}
           </button>
+          </div>
         )}
       </div>
+
+      {/* Painel: gerar pedido manual p/ venda WhatsApp */}
+      {activeTab === 'leads' && showWaPanel && (
+        <div style={{ backgroundColor: 'var(--card, #14162a)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <MessageCircle size={18} style={{ color: '#10b981' }} /> Gerar link de resgate (venda WhatsApp)
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+            Cria um pedido manual e gera o link do resgatar já com o número preenchido.
+            O cliente só informa nome e e-mail — a chave sai do estoque e as instruções (com o comando de instalação) vão por e-mail.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              value={waProduct}
+              onChange={e => setWaProduct(e.target.value)}
+              style={{ padding: '0.625rem', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#0d0f1d', color: 'white', fontSize: '0.875rem' }}
+            >
+              <option value="Office 2024 Professional Plus">Office 2024 Professional Plus</option>
+              <option value="Office 2021 Professional Plus">Office 2021 Professional Plus</option>
+              <option value="Office 2016 Professional Plus">Office 2016 Professional Plus</option>
+              <option value="Windows 11 Pro">Windows 11 Pro</option>
+              <option value="Windows 10 Pro">Windows 10 Pro</option>
+            </select>
+            <button
+              onClick={async () => {
+                setWaLoading(true);
+                setWaResult(null);
+                setWaCopied(false);
+                try {
+                  const res = await createWhatsAppOrder(waProduct);
+                  if (res.success && res.orderId && res.link) {
+                    setWaResult({ orderId: res.orderId, link: res.link });
+                  } else {
+                    alert(res.message || 'Erro ao gerar o pedido.');
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert('Erro ao gerar o pedido.');
+                } finally {
+                  setWaLoading(false);
+                }
+              }}
+              disabled={waLoading}
+              style={{ padding: '0.625rem 1.25rem', backgroundColor: waLoading ? '#1e2130' : 'var(--primary)', color: 'white', borderRadius: '8px', fontSize: '0.875rem', fontWeight: '600', cursor: waLoading ? 'not-allowed' : 'pointer', border: 'none' }}
+            >
+              {waLoading ? 'Gerando...' : 'Gerar link'}
+            </button>
+          </div>
+          {waResult && (
+            <div
+              onClick={() => {
+                navigator.clipboard.writeText(waResult.link);
+                setWaCopied(true);
+                setTimeout(() => setWaCopied(false), 2000);
+              }}
+              style={{ marginTop: '1rem', padding: '0.875rem 1rem', backgroundColor: '#0d0f1d', border: `1px solid ${waCopied ? '#10b981' : 'var(--border)'}`, borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.875rem' }}
+            >
+              <Copy size={16} style={{ color: waCopied ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />
+              <div style={{ wordBreak: 'break-all' }}>
+                <div style={{ fontFamily: 'monospace', color: waCopied ? '#10b981' : '#c7d2fe' }}>{waResult.link}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  Pedido <strong>{waResult.orderId}</strong> — {waCopied ? 'Copiado! Cole no WhatsApp do cliente.' : 'Clique para copiar'}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tabs Menu */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '2rem' }}>
