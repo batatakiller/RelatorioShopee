@@ -430,32 +430,7 @@ export async function saveLeadAndSendKey(
     const nameClean = name.trim();
     const emailClean = email.trim();
 
-    // 0. Check if a lead for this order has already been registered
-    const { data: existingLead } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('order_id', orderIdClean)
-      .maybeSingle();
-
-    let isUpdatingPending = false;
-
-    if (existingLead) {
-      // If the lead exists but was pending verification and now the product is chosen,
-      // allow updating the product name and dispatching the key.
-      if (existingLead.status === 'pending_verification' && selectedProduct) {
-        isUpdatingPending = true;
-      } else {
-        return { 
-          success: true, 
-          status: existingLead.status, 
-          lead: existingLead,
-          isDuplicate: true,
-          message: `Este pedido já foi resgatado anteriormente para o e-mail: ${existingLead.email}`
-        };
-      }
-    }
-
-    // 1. Search for order in database
+    // 0. Search for order in database first
     const { data: order, error: orderError } = await supabase
       .from('shopee_orders')
       .select('*')
@@ -471,12 +446,57 @@ export async function saveLeadAndSendKey(
       }
     }
 
-    let matchedProductName = selectedProduct || '';
+    // 1. Check if a lead for this order has already been registered
+    const { data: existingLead } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('order_id', orderIdClean)
+      .maybeSingle();
+
+    let isUpdatingPending = false;
+    let localSelectedProduct = selectedProduct;
+
+    if (existingLead) {
+      const isPending = existingLead.status === 'pending_verification' || existingLead.status === 'pending_key';
+      
+      if (isPending && localSelectedProduct) {
+        isUpdatingPending = true;
+      } else if (isPending) {
+        // If order has been updated to a valid product name, auto-dispatch it now!
+        if (order && order.product_name && order.product_name !== 'Produto não identificado') {
+          isUpdatingPending = true;
+          localSelectedProduct = order.product_name;
+        } else {
+          // Keep waiting for manual product selection
+          return {
+            success: true,
+            status: existingLead.status,
+            lead: existingLead,
+            message: 'Aguardando seleção do produto ou verificação manual.'
+          };
+        }
+      } else {
+        return { 
+          success: true, 
+          status: existingLead.status, 
+          lead: existingLead,
+          isDuplicate: true,
+          message: `Este pedido já foi resgatado anteriormente para o e-mail: ${existingLead.email}`
+        };
+      }
+    }
+
+    let matchedProductName = localSelectedProduct || '';
     let isOrderFound = false;
 
-    if (order && !orderError && order.product_name && order.product_name !== 'Produto não identificado') {
-      matchedProductName = order.product_name;
-      isOrderFound = true;
+    if (order && !orderError) {
+      if (order.product_name && order.product_name !== 'Produto não identificado') {
+        matchedProductName = order.product_name;
+        isOrderFound = true;
+      } else if (localSelectedProduct) {
+        matchedProductName = localSelectedProduct;
+        isOrderFound = true;
+      }
     }
 
     // Order number not in the database and the customer hasn't chosen to
@@ -561,6 +581,14 @@ export async function saveLeadAndSendKey(
 
       if (leadError) throw leadError;
       newLead = insertedLead;
+    }
+
+    // If order had unidentified product name, update it in shopee_orders to what was matched/selected
+    if (order && order.product_name === 'Produto não identificado' && matchedProductName && matchedProductName !== 'Produto não identificado') {
+      await supabase
+        .from('shopee_orders')
+        .update({ product_name: matchedProductName })
+        .eq('order_id', orderIdClean);
     }
 
     // 4. Send email if status is 'sent'
